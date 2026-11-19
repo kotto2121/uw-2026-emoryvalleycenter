@@ -71,7 +71,7 @@ export default function Overview() {
 
       <div className="grid cols-4">
         <Kpi label="People in records this month" icon="users" value={cur.people} previous={prev.people} delay={0} accent />
-        <Kpi label="Behavioral health clients" icon="brain" value={cur.bh} previous={prev.bh} goodDirection="up" delay={0.05} onClick={() => router.push("/behavioral-health")} />
+        <Kpi label="Behavioral health clients" icon="brain" value={data?.bhPeople} hint="People with the Behavioral box ticked" delay={0.05} onClick={() => router.push("/behavioral-health")} />
         <Kpi label="Incidents this month" icon="shield" value={cur.events} previous={prev.events} goodDirection="down" delay={0.1} onClick={() => router.push("/incidents")} />
         <Kpi label="Reportable incidents" icon="alert" value={cur.reportable} previous={prev.reportable} goodDirection="down" delay={0.15} onClick={() => router.push("/incidents")} />
       </div>

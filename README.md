@@ -6,7 +6,7 @@ A **local-first desktop dashboard** for Emory Valley Center (EVC). It runs entir
 
 1. **Import** the PHS *New Reportable Event Report* (.xlsx) and the monthly *Behavioral Health roster* Word document (.docx).
 2. **Match people across files** without a client ID: a person registry with name normalization and fuzzy matching. Close-but-uncertain matches go to a **Review Queue** for a human decision, and every decision is remembered.
-3. **Dashboards:** Overview, Behavioral Health (OP / PSR enrollment plus crisis indicators), Incidents & Safety and Behavioral Metrics (each metric split Behavioral / Non-Behavioral, monthly trend, by site, by person), with filters by month, site, segment and reportability. People can be marked **Behavioral** (a BH roster import ticks it to start) or **Test** (left out of every count) on their page.
+3. **Dashboards:** Overview, Behavioral Health (incidents involving people marked Behavioral, plus crisis indicators), Incidents & Safety and Behavioral Metrics (each metric split Behavioral / Non-Behavioral, monthly trend, by site, by person), with filters by month, site, segment and reportability. People can be marked **Behavioral** (a BH roster import ticks it to start) or **Test** (left out of every count) on their page.
 4. **Reports:** the monthly OP and PSR reports that used to be built by hand, exported as Excel or printed.
 5. **Roadmap pages** for every other program in EVC's Data Metric Goals.
 

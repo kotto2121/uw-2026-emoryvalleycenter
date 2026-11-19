@@ -3,7 +3,7 @@ import { useState } from "react";
 import Icon from "../components/Icon";
 import { useMeta } from "../components/Layout";
 import { Button, Callout, Card, Empty, Kpi, MonthSelect, PageHeader, PartialMonthNotice, Skeleton, useAsync } from "../components/ui";
-import { SegmentBar, Spark, TrendLines, SERIES } from "../components/charts";
+import { MUTED, SegmentBar, Spark, TrendLines, SERIES } from "../components/charts";
 import { api, qs } from "../lib/api";
 import { fmt, monthLabel } from "../lib/format";
 
@@ -23,15 +23,17 @@ export default function BehavioralHealth() {
   const router = useRouter();
   const { meta } = useMeta();
   const [month, setMonth] = useState(null);
-  const { data, loading } = useAsync(() => api.get(`/api/bh${qs({ month })}`), [month, meta?.last_import, meta?.pending_reviews]);
+  // meta.behavioral_people / test_people change when a person's boxes change.
+  const { data, loading } = useAsync(() => api.get(`/api/bh${qs({ month })}`),
+    [month, meta?.last_import, meta?.pending_reviews, meta?.behavioral_people, meta?.test_people]);
 
   if (!meta || (loading && !data)) return <Skeleton h={400} />;
   if (!data?.current) {
     return (
       <>
         <PageHeader eyebrow="Program" title="Behavioral Health" />
-        <Card><Empty icon="brain" title="No behavioral health data yet" actions={<Button variant="primary" icon="upload" onClick={() => router.push("/import")}>Import roster & events</Button>}>
-          Import the monthly behavioral health roster (Word) and the PHS event report (Excel) to populate this dashboard.
+        <Card><Empty icon="brain" title="No behavioral health data yet" actions={<Button variant="primary" icon="upload" onClick={() => router.push("/import")}>Import events</Button>}>
+          Import the PHS event report (Excel), then tick Behavioral on each BH client&rsquo;s page under People.
         </Empty></Card>
       </>
     );
@@ -44,7 +46,7 @@ export default function BehavioralHealth() {
       <PageHeader
         eyebrow="Program dashboard"
         title="Behavioral Health"
-        subtitle={`Outpatient therapy (OP) and psychosocial rehabilitation (PSR) clients for ${monthLabel(data.month)}, with crisis indicators from the PHS event report.`}
+        subtitle={`Incidents involving people marked Behavioral in ${monthLabel(data.month)}, with crisis indicators from the PHS event report.`}
         actions={<>
           <MonthSelect months={data.months} value={data.month} onChange={setMonth} />
           <Button icon="file" onClick={() => router.push(`/reports?month=${data.month}`)}>OP & PSR reports</Button>
@@ -52,41 +54,44 @@ export default function BehavioralHealth() {
       />
 
       <PartialMonthNotice partialMonths={data.partialMonths} />
-      {c.bhPeople === 0 && (
-        <Callout tone="info" icon="file" title={`No behavioral health roster for ${monthLabel(data.month)}.`}>
-          OP / PSR counts need the monthly roster (Word document) — <a href="#" onClick={(e) => { e.preventDefault(); router.push("/import"); }} style={{ textDecoration: "underline" }}>import it</a>. The crisis &amp; safety indicators below come from the PHS event report and cover <strong>everyone</strong> in it, not only BH clients.
+      {data.bhPeople === 0 && (
+        <Callout tone="info" icon="user" title="No one is marked Behavioral yet.">
+          Tick Behavioral on a person&rsquo;s page under <a href="#" onClick={(e) => { e.preventDefault(); router.push("/people"); }} style={{ textDecoration: "underline" }}>People</a>. Importing a BH roster ticks it for everyone on the roster.
         </Callout>
       )}
 
       <div className="grid cols-4">
-        <Kpi label="People in OP" icon="user" value={c.bhPeople ? c.op : null} previous={c.bhPeople ? p.op : null} goodDirection="up" accent />
-        <Kpi label="People in PSR" icon="users" value={c.bhPeople ? c.psr : null} previous={c.bhPeople ? p.psr : null} goodDirection="up" delay={0.05} />
-        <Kpi label="Receiving both" icon="merge" value={c.bhPeople ? c.both : null} previous={c.bhPeople ? p.both : null} delay={0.1} />
-        <Kpi label="BH clients with an incident" icon="shield" value={c.bhPeople ? c.bhClientsWithEvents : null} previous={c.bhPeople ? p.bhClientsWithEvents : null} goodDirection="down" delay={0.15}
-          onClick={() => router.push("/incidents")} />
+        <Kpi label="Behavioral clients" icon="brain" value={data.bhPeople} hint="People with the Behavioral box ticked" accent
+          onClick={() => router.push("/people")} />
+        <Kpi label="BH clients with an incident" icon="users" value={data.bhPeople ? c.bhClientsWithEvents : null} previous={data.bhPeople && data.previous ? p.bhClientsWithEvents : null} goodDirection="down" delay={0.05}
+          onClick={() => router.push("/metrics")} />
+        <Kpi label="Incidents involving BH clients" icon="shield" value={data.bhPeople ? c.bhClientEvents : null} previous={data.bhPeople && data.previous ? p.bhClientEvents : null} goodDirection="down" delay={0.1}
+          onClick={() => router.push("/metrics")} />
+        <Kpi label="Reportable, BH clients" icon="alert" value={data.bhPeople ? c.bhReportable : null} previous={data.bhPeople && data.previous ? p.bhReportable : null} goodDirection="down" delay={0.15}
+          onClick={() => router.push("/metrics")} />
       </div>
 
       <div className="grid cols-2-1">
-        <Card title="Enrollment trend" subtitle="Distinct people on each roster, for months with a roster imported" delay={0.1}>
-          {data.trend.filter((t) => t.hasRoster).length ? (
-            <TrendLines data={data.trend.filter((t) => t.hasRoster)} series={[{ key: "op", label: "Outpatient (OP)", color: SERIES[0] }, { key: "psr", label: "PSR", color: SERIES[1] }]} />
-          ) : <p className="muted">No roster imported yet — enrollment trends appear once monthly rosters are imported.</p>}
+        <Card title="BH incidents by month" subtitle="Event records involving people marked Behavioral (duplicates excluded)" delay={0.1}>
+          <TrendLines data={data.trend} series={[
+            { key: "bhClientEvents", label: "Incident records", color: SERIES[2] },
+            { key: "bhClientsWithEvents", label: "BH clients with an incident", color: SERIES[0] },
+          ]} />
         </Card>
-        <Card title="Service mix" subtitle={`${fmt(c.bhPeople)} distinct BH clients in ${monthLabel(data.month)}`} delay={0.15}>
+        <Card title="Share of incidents" subtitle={`All event records in ${monthLabel(data.month)}`} delay={0.15}>
           <SegmentBar parts={[
-            { label: "OP only", n: c.op - c.both, color: SERIES[0] },
-            { label: "PSR only", n: c.psr - c.both, color: SERIES[1] },
-            { label: "Both", n: c.both, color: SERIES[2] },
+            { label: "BH clients", n: c.bhClientEvents, color: SERIES[2] },
+            { label: "Everyone else", n: c.events - c.bhClientEvents, color: MUTED },
           ]} />
           <div style={{ marginTop: 22 }}>
             <Callout tone="info" icon="merge">
-              {fmt(c.bhClientEvents)} incident records in {monthLabel(data.month)} involve BH clients — linked through the person registry, not by name text.
+              {fmt(c.bhClientEvents)} of {fmt(c.events)} incident records in {monthLabel(data.month)} involve people marked Behavioral — linked through the person registry, not by name text.
             </Callout>
           </div>
         </Card>
       </div>
 
-      <Card title="Crisis & safety indicators" subtitle={`Counts of event records in ${monthLabel(data.month)} · six-month trend · change vs. previous month`} delay={0.2}
+      <Card title="Crisis & safety indicators" subtitle={`Event records for everyone in the PHS report, not only BH clients · ${monthLabel(data.month)} · six-month trend · change vs. previous month`} delay={0.2}
         footer={<span><Icon name="info" size={13} style={{ verticalAlign: -2 }} /> Counted from PHS&rsquo;s real option labels (hover a tile to see exactly how). Property damage has no PHS option, so it&rsquo;s a minimum taken from narratives. Confirm definitions with Kristen before reporting externally.</span>}>
         <div className="multiples">
           {INDICATORS.map(([key, label, goal, how]) => {

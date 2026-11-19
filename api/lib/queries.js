@@ -106,49 +106,50 @@ function meta() {
 
 // ---- Behavioral Health ------------------------------------------------------
 
+// Behavioral is a person-level fact: the Behavioral box on a person's page
+// (person.is_behavioral) is the only source of truth. A BH roster import just
+// ticks the box; OP / PSR service is not reported.
+function bhPeopleCount() {
+  return db.get("SELECT COUNT(*) AS n FROM person WHERE is_behavioral = 1 AND is_test = 0").n;
+}
+
 function bhMonth(month) {
-  const roster = db.get(
-    `SELECT
-       COUNT(DISTINCT CASE WHEN service = 'OP'  THEN person_id END) AS op,
-       COUNT(DISTINCT CASE WHEN service = 'PSR' THEN person_id END) AS psr,
-       COUNT(DISTINCT person_id) AS total
-     FROM bh_enrollment WHERE report_month = ? AND ${NOT_TEST}`, [month]);
-  const both = db.get(
-    `SELECT COUNT(*) AS n FROM (
-       SELECT person_id FROM bh_enrollment WHERE report_month = ? AND ${NOT_TEST}
-       GROUP BY person_id HAVING COUNT(DISTINCT service) = 2)`, [month]).n;
   const flagSql = Object.keys(FLAGS).map((f) => `SUM(${f}) AS ${f}`).join(", ");
   const ev = db.get(
     `SELECT COUNT(*) AS events, ${flagSql},
             SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
      FROM event_report WHERE event_month = ? AND is_exact_duplicate = 0 AND ${NOT_TEST}`, [month]);
-  const bhClientEvents = db.get(
-    `SELECT COUNT(*) AS events, COUNT(DISTINCT e.person_id) AS people
-     FROM event_report e
-     WHERE e.event_month = ? AND e.is_exact_duplicate = 0 AND ${NOT_TEST}
-       AND e.person_id IN (SELECT person_id FROM bh_enrollment WHERE report_month = ?)`, [month, month]);
-  const out = { month, hasRoster: roster.total > 0, op: roster.op, psr: roster.psr, both, bhPeople: roster.total, events: ev.events, reportable: ev.reportable || 0, bhClientEvents: bhClientEvents.events, bhClientsWithEvents: bhClientEvents.people };
+  const bh = db.get(
+    `SELECT COUNT(*) AS events, COUNT(DISTINCT person_id) AS people,
+            SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
+     FROM event_report
+     WHERE event_month = ? AND is_exact_duplicate = 0 AND ${IS_BH} AND ${NOT_TEST}`, [month]);
+  const out = {
+    month, events: ev.events, reportable: ev.reportable || 0,
+    bhClientEvents: bh.events, bhClientsWithEvents: bh.people, bhReportable: bh.reportable || 0,
+  };
   for (const f of Object.keys(FLAGS)) out[f] = ev[f] || 0;
   return out;
 }
 
 function bhDashboard({ month } = {}) {
   const m = months();
-  // Default: latest roster month; else the latest COMPLETE month of events.
+  // Default: the latest COMPLETE month of events.
   const partial = partialMonths();
   const complete = m.events.filter((x) => !partial[x]);
-  const target = month || m.roster[m.roster.length - 1] || complete[complete.length - 1] || m.events[m.events.length - 1];
-  if (!target) return { month: null, months: m.all, current: null, previous: null, trend: [], flags: FLAGS };
+  const target = month || complete[complete.length - 1] || m.events[m.events.length - 1];
+  const bhPeople = bhPeopleCount();
+  if (!target) return { month: null, months: m.all, current: null, previous: null, trend: [], flags: FLAGS, bhPeople };
   const trend = m.all.filter((x) => x <= target).slice(-12).map(bhMonth);
   return {
     month: target,
     months: m.all,
+    bhPeople,
     current: bhMonth(target),
     previous: m.all.includes(prevMonth(target)) ? bhMonth(prevMonth(target)) : null,
     trend,
     flags: FLAGS,
     partialMonths: partial,
-    hasRoster: m.roster.length > 0,
   };
 }
 
@@ -368,14 +369,13 @@ function overview() {
     const ev = db.get(
       `SELECT COUNT(*) AS events, SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
        FROM event_report WHERE event_month = ? AND is_exact_duplicate = 0 AND ${NOT_TEST}`, [month]);
-    const bh = db.get(`SELECT COUNT(DISTINCT person_id) AS n FROM bh_enrollment WHERE report_month = ? AND ${NOT_TEST}`, [month]).n;
-    return { month, people, events: ev.events, reportable: ev.reportable || 0, bh };
+    return { month, people, events: ev.events, reportable: ev.reportable || 0 };
   });
   const sources = db.all(
     `SELECT kind, COUNT(*) AS imports, MAX(imported_at) AS last_import,
             MAX(COALESCE(report_month, '')) AS last_month, SUM(rows_inserted) AS rows
      FROM import_batch GROUP BY kind`);
-  return { latest, trend, sources, meta: meta(), partialMonths: partialMonths() };
+  return { latest, trend, sources, bhPeople: bhPeopleCount(), meta: meta(), partialMonths: partialMonths() };
 }
 
 // ---- People ----------------------------------------------------------------

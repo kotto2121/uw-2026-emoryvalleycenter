@@ -179,6 +179,13 @@ async function getDb() {
   const personCols = new Set(all("SELECT name FROM pragma_table_info('person')").map((r) => r.name));
   if (!personCols.has("is_behavioral")) db.run("ALTER TABLE person ADD COLUMN is_behavioral INTEGER;");
   if (!personCols.has("is_test")) db.run("ALTER TABLE person ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0;");
+  // Rosters imported before the Behavioral box existed never ticked it. Do what
+  // the roster import does now: tick it for people on a roster, unless someone
+  // already set it by hand. Idempotent; persisted by seedColumnMappings below.
+  db.run(
+    `UPDATE person SET is_behavioral = 1 WHERE is_behavioral IS NULL
+       AND id IN (SELECT person_id FROM bh_enrollment WHERE person_id IS NOT NULL)`
+  );
   seedColumnMappings();
   reclassifyIfNeeded();
   return db;
