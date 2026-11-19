@@ -4,10 +4,21 @@
  * Column headings are matched loosely (case/punctuation-insensitive) against
  * both the original PHS headings and the recommended normalized names from the
  * schema profile, so a re-ordered or slightly renamed export still imports.
- * Blank / whitespace-only cells become null. Dates are parsed explicitly as
- * MM/DD/YYYY text (how PHS exports them), real Excel dates, or ISO strings.
+ * Blank / whitespace-only cells and Kristen's "No Data Reported" placeholders
+ * become null. Dates are parsed explicitly as MM/DD/YYYY text (how PHS exports
+ * them), real Excel dates, Excel serial numbers, or ISO strings.
+ *
+ * Workbooks can hold many sheets (Kristen's working file has 19: the raw
+ * export on "All", report tabs, charts, and a hand-edited "Data" copy). Every
+ * sheet is scanned for the event-report header row; the sheet with the best
+ * header match wins and the others are reported as warnings — never imported
+ * too, which would double-count. Rows hidden by an Excel filter are still
+ * imported (all rows count), with a warning that filters were applied.
+ *
+ * Column aliases can also come from the database (column_mappings, managed
+ * through the Import Center's unknown-column review); see opts.mappings.
  */
-const ExcelJS = require("exceljs");
+const { readWorkbook } = require("./xlsx-read");
 const { normalizeValue } = require("../../db/normalize");
 
 const FIELDS = [
@@ -61,9 +72,8 @@ function cellText(v) {
 
 function clean(v) {
   // Normalize via the shared layer (db/normalize.js) BEFORE hashing/import so
-  // sentinel variants (NA / n/a / N/A / None / '-' ...) collapse to null and
-  // re-import dedupe hashes normalized values. Runs at cell-clean time —
-  // see db/normalize.js header for the hash-position rationale.
+  // sentinel variants (NA / n/a / "No Data Reported" / '-' ...) collapse to
+  // null and re-import dedupe hashes normalized values.
   return normalizeValue(cellText(v));
 }
 
@@ -99,16 +109,19 @@ function parseDate(v) {
  * @param {Array}  [opts.mappings]  DB mappings [{ field, alias }] — defaults to FIELDS
  * @param {boolean} [opts.require]  throw on missing required columns (default true for
  *                                  backward compat; the analyze/commit flow passes false)
+ * @param {number}  [opts.headerRow] 1-based header row override — the review UI's
+ *                                  orientation step ("this row is the header") re-parses
+ *                                  through this path, skipping the scan.
  * @returns {{ rows: object[], warnings: string[], sheet: string, unmappedHeaders: string[],
- *            unknownHeaders: {header:string, samples:any[]}[], missingRequired: string[] }}
+ *            unknownHeaders: {header:string, samples:any[]}[], missingRequired: string[],
+ *            confidence: 'full'|'partial'|'none', headerRow: number|null, preview: any[][] }}
  */
 async function readIncidentWorkbook(buffer, opts = {}) {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
+  const { mappings, require: requireMissing = true, headerRow: headerRowOverride } = opts;
+  const lookup = buildLookup(mappings && mappings.length ? mappings : FIELDS);
+  const knownFields = new Set(lookup.values());
+  const { sheets } = await readWorkbook(buffer);
   const warnings = [];
-  const { mappings, require: requireMissing = true } = opts;
-  const HEADER_LOOKUP = buildLookup(mappings || FIELDS);
-  const knownFields = new Set(HEADER_LOOKUP.values());
 
   // Pass 1: scan the first 15 rows of every sheet, tracking the best
   // candidate header row (most alias hits). >=3 hits is a confident match;
@@ -116,47 +129,47 @@ async function readIncidentWorkbook(buffer, opts = {}) {
   // rejecting. Zero hits anywhere -> confidence 'none'.
   // opts.headerRow overrides the scan entirely: the review UI's orientation
   // step ("this row is the header") re-parses through this path.
-  let best = null; // { ws, headerRow, map, hits }
-  if (opts.headerRow) {
-    const ws = wb.worksheets[0];
-    const m = {};
-    ws.getRow(opts.headerRow).eachCell({ includeEmpty: false }, (cell, col) => {
-      const field = HEADER_LOOKUP.get(squash(cellText(cell.value)));
-      if (field && !Object.values(m).includes(field)) m[col] = field;
+  const scanRow = (ws, r) => {
+    const map = {};
+    let hits = 0;
+    (ws.rows[r] || []).forEach((v, c) => {
+      const field = lookup.get(squash(cellText(v)));
+      if (field && !Object.values(map).includes(field)) {
+        map[c] = field;
+        hits++;
+      }
     });
-    best = { ws, headerRow: opts.headerRow, map: m, hits: Object.keys(m).length };
+    return { map, hits };
+  };
+  const candidates = [];
+  if (headerRowOverride) {
+    const ws = sheets[0];
+    const r = headerRowOverride - 1;
+    const { map, hits } = scanRow(ws, r);
+    candidates.push({ ws, headerRow: r, map, hits });
   } else {
-  for (const ws of wb.worksheets) {
-    let confident = false;
-    for (let r = 1; r <= Math.min(15, ws.rowCount); r++) {
-      const row = ws.getRow(r);
-      const m = {};
-      let hits = 0;
-      row.eachCell({ includeEmpty: false }, (cell, col) => {
-        const field = HEADER_LOOKUP.get(squash(cellText(cell.value)));
-        if (field && !Object.values(m).includes(field)) {
-          m[col] = field;
-          hits++;
+    for (const ws of sheets) {
+      for (let r = 0; r < Math.min(15, ws.rows.length); r++) {
+        const { map, hits } = scanRow(ws, r);
+        if (hits > 0) {
+          const dataRows = ws.rows.slice(r + 1).filter((row) => row.some((v) => clean(v) !== null)).length;
+          candidates.push({ ws, headerRow: r, map, hits, dataRows });
         }
-      });
-      if (hits > (best ? best.hits : 0)) best = { ws, headerRow: r, map: m, hits };
-      if (hits >= 3) {
-        confident = true;
-        break; // confident match — stop scanning this sheet
+        if (hits >= 3) break; // confident match — stop scanning this sheet
       }
     }
-    if (confident) break; // don't let a later sheet beat a confident match
   }
-  }
+  // Best candidate: most alias hits; ties broken by most data rows.
+  candidates.sort((x, y) => y.hits - x.hits || (y.dataRows || 0) - (x.dataRows || 0));
+  const best = candidates[0] || null;
 
   // Raw first-15-rows dump for the review UI (orientation / mapping state).
   const previewRows = (ws) => {
     const preview = [];
-    for (let r = 1; r <= Math.min(15, ws.rowCount); r++) {
-      const cells = [];
-      ws.getRow(r).eachCell({ includeEmpty: false }, (cell, col) => {
-        const v = cellText(cell.value);
-        cells[col - 1] = v instanceof Date ? parseDate(v) : v == null ? "" : String(v);
+    for (let r = 0; r < Math.min(15, ws.rows.length); r++) {
+      const cells = (ws.rows[r] || []).map((v) => {
+        const t = cellText(v);
+        return t instanceof Date ? parseDate(t) : t == null ? "" : String(t);
       });
       while (cells.length && !cells[cells.length - 1]) cells.pop();
       preview.push(cells);
@@ -168,12 +181,19 @@ async function readIncidentWorkbook(buffer, opts = {}) {
   // the UI can ask the user which row is the header — this is the entry
   // point to schema discovery, not an error.
   if (!best) {
-    const ws = wb.worksheets[0];
+    const ws = sheets[0];
     return {
       rows: [], warnings, sheet: ws.name, unmappedHeaders: [], unknownHeaders: [],
       missingRequired: [...REQUIRED],
       confidence: "none", headerRow: null, preview: previewRows(ws),
     };
+  }
+
+  // Runner-up sheets that also look like event data: warn, don't import.
+  for (const other of candidates.slice(1)) {
+    if ((other.hits || 0) >= 3) {
+      warnings.push(`Sheet "${other.ws.name}" also looks like event data (${other.dataRows} rows) but was NOT imported — only "${best.ws.name}" was, to avoid double-counting.`);
+    }
   }
 
   const { ws, headerRow, map } = best;
@@ -190,22 +210,21 @@ async function readIncidentWorkbook(buffer, opts = {}) {
     );
   }
 
-  // Unknown headers: not mapped to any field — collect with sample values
-  // so the review UI can let the user map / accept / ignore them.
+  // Unknown headers: not mapped to any field — collected with sample values so
+  // the review UI can let the user map / accept / ignore them.
   const unknownHeaders = [];
   const unmappedHeaders = [];
-  ws.getRow(headerRow).eachCell({ includeEmpty: false }, (cell, col) => {
-    if (!map[col]) {
-      const header = String(cellText(cell.value) ?? "").trim();
-      if (!header) return;
-      unmappedHeaders.push(header);
-      const samples = [];
-      for (let r = headerRow + 1; r <= Math.min(ws.rowCount, headerRow + 5) && samples.length < 3; r++) {
-        const v = clean(ws.getRow(r).getCell(col).value);
-        if (v !== null) samples.push(v instanceof Date ? parseDate(v) : v);
-      }
-      unknownHeaders.push({ header, samples });
+  (ws.rows[headerRow] || []).forEach((v, c) => {
+    if (map[c]) return;
+    const header = String(cellText(v) ?? "").trim();
+    if (!header) return;
+    unmappedHeaders.push(header);
+    const samples = [];
+    for (let r = headerRow + 1; r < Math.min(ws.rows.length, headerRow + 6) && samples.length < 3; r++) {
+      const val = clean((ws.rows[r] || [])[c]);
+      if (val !== null) samples.push(val instanceof Date ? parseDate(val) : val);
     }
+    unknownHeaders.push({ header, samples });
   });
   for (const [field, names] of FIELDS) {
     if (!mapped.has(field) && knownFields.has(field)) warnings.push(`Column "${names[0]}" not found — left blank.`);
@@ -214,30 +233,35 @@ async function readIncidentWorkbook(buffer, opts = {}) {
 
   const rows = [];
   let badDates = 0;
-  for (let r = headerRow + 1; r <= ws.rowCount; r++) {
-    const row = ws.getRow(r);
+  let hidden = 0;
+  const allFields = new Set([...FIELDS.map(([f]) => f), ...knownFields]);
+  for (let r = headerRow + 1; r < ws.rows.length; r++) {
+    const src = ws.rows[r] || [];
     const rec = {};
     let any = false;
     for (const [col, field] of Object.entries(map)) {
-      const v = clean(row.getCell(Number(col)).value);
+      let v = clean(src[Number(col)]);
+      if (typeof v === "number" && field !== "event_date") v = String(v);
       rec[field] = v;
       if (v !== null) any = true;
     }
     if (!any) continue;
+    if (ws.hiddenRows.has(r)) hidden++;
     const rawDate = rec.event_date;
     rec.event_date = parseDate(rawDate);
     if (rawDate && !rec.event_date) badDates++;
-    for (const field of new Set(HEADER_LOOKUP.values())) {
+    for (const field of allFields) {
       if (!(field in rec)) rec[field] = null;
       if (rec[field] instanceof Date) rec[field] = parseDate(rec[field]);
     }
     rows.push(rec);
   }
-  if (badDates) warnings.push(`${badDates} row(s) had a date that could not be read.`);
+  if (badDates) warnings.push(`${badDates} row(s) had a date that could not be read; they are kept but won't appear in monthly counts.`);
+  if (hidden) warnings.push(`${hidden} row(s) were hidden by an Excel filter. All rows are imported regardless of filters.`);
   return {
     rows, warnings, sheet: ws.name, unmappedHeaders, unknownHeaders, missingRequired,
     confidence: tentative ? "partial" : "full",
-    headerRow,
+    headerRow: headerRow + 1,
     preview: previewRows(ws),
   };
 }

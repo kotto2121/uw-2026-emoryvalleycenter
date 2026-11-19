@@ -8,13 +8,19 @@
  *   - "Not recorded" is reported separately from "No Injury" etc.: a blank in
  *     the export is missing data, not a negative answer.
  *   - Event counts are records; people counts use the person registry.
+ *   - Test patients (person.is_test = 1) are left out of every count.
+ *   - Segment "behavioral" = the person's Behavioral box (person.is_behavioral);
+ *     "non" = everyone else, including events with no matched person.
  */
 const db = require("../../db");
-const { splitOptions, INTERVENTION_OPTIONS, BEHAVIORAL_OPTIONS, TIER_OPTIONS } = require("../../db/classify");
+const {
+  splitOptions, categorize, INTERVENTION_OPTIONS, BEHAVIORAL_OPTIONS, TIER_OPTIONS, MEDICAL_OPTIONS, OTHER_CATEGORIES,
+} = require("../../db/classify");
 const { compareKey } = require("../../db/normalize");
 
 const FLAGS = {
   f_hospitalization: "Hospitalizations",
+  f_restraint: "Restrictive interventions",
   f_er: "ER visits",
   f_911: "911 calls",
   f_police: "Police involvement",
@@ -29,14 +35,47 @@ function prevMonth(month) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function eventWhere({ from, to, site, includeDuplicates } = {}) {
-  const w = ["event_month IS NOT NULL"];
+// Unqualified `person_id` so these work on event_report and bh_enrollment alike.
+const NOT_TEST = "(person_id IS NULL OR person_id NOT IN (SELECT id FROM person WHERE is_test = 1))";
+const IS_BH = "(person_id IN (SELECT id FROM person WHERE is_behavioral = 1))";
+const NOT_BH = "(person_id IS NULL OR person_id NOT IN (SELECT id FROM person WHERE is_behavioral = 1))";
+
+const METRIC_KEYS = Object.keys(FLAGS);
+/** An event that counts toward at least one metric in FLAGS. */
+const ANY_METRIC = `(${METRIC_KEYS.join(" + ")}) > 0`;
+
+/**
+ * filters: from/to (YYYY-MM), site, includeDuplicates,
+ *          segment ('behavioral' | 'non'), reportable ('reportable' | 'non').
+ */
+function eventWhere({ from, to, site, includeDuplicates, segment, reportable } = {}) {
+  const w = ["event_month IS NOT NULL", NOT_TEST];
   const p = [];
   if (!includeDuplicates) w.push("is_exact_duplicate = 0");
   if (from) { w.push("event_month >= ?"); p.push(from); }
   if (to) { w.push("event_month <= ?"); p.push(to); }
   if (site) { w.push("site_home = ?"); p.push(site); }
+  if (segment === "behavioral") w.push(IS_BH);
+  if (segment === "non") w.push(NOT_BH);
+  if (reportable === "reportable") w.push("is_reportable = 1");
+  if (reportable === "non") w.push("is_reportable = 0");
   return { sql: w.join(" AND "), params: p };
+}
+
+/**
+ * Months whose event data looks incomplete: the last event date is more than
+ * 5 days before month end AND the month is the newest in the data (an export
+ * pulled mid-month). Older months are assumed complete.
+ */
+function partialMonths() {
+  const row = db.get(
+    `SELECT event_month AS m, MAX(event_date) AS last FROM event_report
+     WHERE event_month = (SELECT MAX(event_month) FROM event_report) GROUP BY 1`);
+  if (!row) return {};
+  const [y, mo] = row.m.split("-").map(Number);
+  const monthEnd = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const lastDay = Number(row.last.slice(8, 10));
+  return lastDay < monthEnd - 5 ? { [row.m]: row.last } : {};
 }
 
 function months() {
@@ -58,9 +97,11 @@ function meta() {
       (SELECT COUNT(*) FROM match_review WHERE status = 'pending') AS pending_reviews,
       (SELECT COUNT(*) FROM import_batch) AS imports,
       (SELECT COUNT(*) FROM import_batch WHERE is_demo = 1) AS demo_imports,
-      (SELECT MAX(imported_at) FROM import_batch) AS last_import`);
+      (SELECT MAX(imported_at) FROM import_batch) AS last_import,
+      (SELECT COUNT(*) FROM person WHERE is_behavioral = 1) AS behavioral_people,
+      (SELECT COUNT(*) FROM person WHERE is_test = 1) AS test_people`);
   const sites = db.all("SELECT DISTINCT site_home AS s FROM event_report WHERE site_home IS NOT NULL ORDER BY 1").map((r) => r.s);
-  return { months: m, sites, ...counts, hasData: counts.imports > 0, isDemo: counts.demo_imports > 0 };
+  return { months: m, partialMonths: partialMonths(), sites, ...counts, hasData: counts.imports > 0, isDemo: counts.demo_imports > 0 };
 }
 
 // ---- Behavioral Health ------------------------------------------------------
@@ -71,29 +112,32 @@ function bhMonth(month) {
        COUNT(DISTINCT CASE WHEN service = 'OP'  THEN person_id END) AS op,
        COUNT(DISTINCT CASE WHEN service = 'PSR' THEN person_id END) AS psr,
        COUNT(DISTINCT person_id) AS total
-     FROM bh_enrollment WHERE report_month = ?`, [month]);
+     FROM bh_enrollment WHERE report_month = ? AND ${NOT_TEST}`, [month]);
   const both = db.get(
     `SELECT COUNT(*) AS n FROM (
-       SELECT person_id FROM bh_enrollment WHERE report_month = ?
+       SELECT person_id FROM bh_enrollment WHERE report_month = ? AND ${NOT_TEST}
        GROUP BY person_id HAVING COUNT(DISTINCT service) = 2)`, [month]).n;
   const flagSql = Object.keys(FLAGS).map((f) => `SUM(${f}) AS ${f}`).join(", ");
   const ev = db.get(
     `SELECT COUNT(*) AS events, ${flagSql},
             SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
-     FROM event_report WHERE event_month = ? AND is_exact_duplicate = 0`, [month]);
+     FROM event_report WHERE event_month = ? AND is_exact_duplicate = 0 AND ${NOT_TEST}`, [month]);
   const bhClientEvents = db.get(
     `SELECT COUNT(*) AS events, COUNT(DISTINCT e.person_id) AS people
      FROM event_report e
-     WHERE e.event_month = ? AND e.is_exact_duplicate = 0
+     WHERE e.event_month = ? AND e.is_exact_duplicate = 0 AND ${NOT_TEST}
        AND e.person_id IN (SELECT person_id FROM bh_enrollment WHERE report_month = ?)`, [month, month]);
-  const out = { month, op: roster.op, psr: roster.psr, both, bhPeople: roster.total, events: ev.events, reportable: ev.reportable || 0, bhClientEvents: bhClientEvents.events, bhClientsWithEvents: bhClientEvents.people };
+  const out = { month, hasRoster: roster.total > 0, op: roster.op, psr: roster.psr, both, bhPeople: roster.total, events: ev.events, reportable: ev.reportable || 0, bhClientEvents: bhClientEvents.events, bhClientsWithEvents: bhClientEvents.people };
   for (const f of Object.keys(FLAGS)) out[f] = ev[f] || 0;
   return out;
 }
 
 function bhDashboard({ month } = {}) {
   const m = months();
-  const target = month || m.roster[m.roster.length - 1] || m.events[m.events.length - 1];
+  // Default: latest roster month; else the latest COMPLETE month of events.
+  const partial = partialMonths();
+  const complete = m.events.filter((x) => !partial[x]);
+  const target = month || m.roster[m.roster.length - 1] || complete[complete.length - 1] || m.events[m.events.length - 1];
   if (!target) return { month: null, months: m.all, current: null, previous: null, trend: [], flags: FLAGS };
   const trend = m.all.filter((x) => x <= target).slice(-12).map(bhMonth);
   return {
@@ -103,6 +147,8 @@ function bhDashboard({ month } = {}) {
     previous: m.all.includes(prevMonth(target)) ? bhMonth(prevMonth(target)) : null,
     trend,
     flags: FLAGS,
+    partialMonths: partial,
+    hasRoster: m.roster.length > 0,
   };
 }
 
@@ -149,8 +195,10 @@ function incidentsSummary(filters = {}) {
             SUM(CASE WHEN injury_level = 'Serious Injury' THEN 1 ELSE 0 END) AS serious,
             SUM(CASE WHEN event_interventions IS NOT NULL THEN 1 ELSE 0 END) AS with_intervention,
             SUM(CASE WHEN behavioral_psychiatric_events IS NOT NULL THEN 1 ELSE 0 END) AS with_behavioral,
+            SUM(CASE WHEN medical_events IS NOT NULL THEN 1 ELSE 0 END) AS with_medical,
             SUM(CASE WHEN tier_1_events IS NOT NULL THEN 1 ELSE 0 END) AS tier1,
             SUM(CASE WHEN tier_2_events IS NOT NULL THEN 1 ELSE 0 END) AS tier2,
+            SUM(CASE WHEN other_event_types IS NOT NULL THEN 1 ELSE 0 END) AS with_other,
             ${flagSql}
      FROM event_report WHERE ${where.sql}`, where.params);
   const byMonth = db.all(
@@ -180,13 +228,20 @@ function incidentsSummary(filters = {}) {
       allegations.set(key, cur);
     }
   }
-  const otherCategories = db.all(
-    `SELECT other_event_types AS label, COUNT(*) AS n FROM event_report
-     WHERE ${where.sql} AND other_event_types IS NOT NULL AND LENGTH(other_event_types) <= 60
-     GROUP BY 1 HAVING COUNT(*) >= 3 ORDER BY n DESC LIMIT 8`, where.params);
-  const otherTotal = db.get(`SELECT COUNT(*) AS n FROM event_report WHERE ${where.sql} AND other_event_types IS NOT NULL`, where.params).n;
-  const otherListed = otherCategories.reduce((s, r) => s + r.n, 0);
-  if (otherTotal > otherListed) otherCategories.push({ label: "Narrative / other entries", n: otherTotal - otherListed });
+  // Keyword categories (db/classify.js): each category once per event; rows
+  // that match none land in a gray catch-all bucket at the end.
+  function categoryCounts(column, categories, noneLabel) {
+    const counts = new Map(categories.map(([label]) => [label, 0]));
+    let none = 0;
+    for (const r of db.all(`SELECT ${column} AS t FROM event_report WHERE ${where.sql} AND ${column} IS NOT NULL`, where.params)) {
+      const hits = categorize(r.t, categories);
+      if (!hits.length) none++;
+      for (const label of hits) counts.set(label, counts.get(label) + 1);
+    }
+    const rows = [...counts.entries()].filter(([, n]) => n > 0).map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n);
+    if (none) rows.push({ label: noneLabel, n: none });
+    return rows;
+  }
 
   const dq = db.get(
     `SELECT COUNT(*) AS rows,
@@ -208,15 +263,81 @@ function incidentsSummary(filters = {}) {
     topSites: groupCount("site_home", where, { limit: 10 }).filter((r) => r.label !== "All other"),
     interventions: optionCounts("event_interventions", INTERVENTION_OPTIONS),
     behavioral: optionCounts("behavioral_psychiatric_events", BEHAVIORAL_OPTIONS),
+    medical: optionCounts("medical_events", MEDICAL_OPTIONS),
     allegations: [...allegations.values()].sort((a, b) => b.n - a.n),
-    otherCategories,
+    otherGroups: categoryCounts("other_event_types", OTHER_CATEGORIES, "Narrative / other entries"),
     flags: FLAGS,
     dataQuality: dq,
   };
 }
 
-function incidentList({ from, to, site, q, flag, includeDuplicates, limit = 200, offset = 0 } = {}) {
-  const where = eventWhere({ from, to, site, includeDuplicates });
+// ---- Behavioral metrics (the Behavioral Reporting workbook's report tabs) ----
+
+/**
+ * One call for the Behavioral Metrics page:
+ *   summary  each metric + "Any of the above" + all events, as events and
+ *            people, split All / Behavioral / Non-Behavioral (ignores the
+ *            segment filter, since it shows every segment)
+ *   trend    every month in range x every metric (honors all filters)
+ *   sites    every site: events, reportable, any metric, people
+ *   people   every person with events: same columns + Behavioral box
+ */
+function behavioralMetrics(filters = {}) {
+  const split = eventWhere({ ...filters, segment: undefined });
+  const conds = [...METRIC_KEYS.map((k) => [k, `${k} = 1`]), ["any", ANY_METRIC], ["all", "1 = 1"]];
+  const sel = conds
+    .map(([k, c]) => `SUM(CASE WHEN ${c} THEN 1 ELSE 0 END) AS e_${k}, COUNT(DISTINCT CASE WHEN ${c} THEN person_id END) AS p_${k}`)
+    .join(", ");
+  const bySeg = db.all(
+    `SELECT CASE WHEN ${IS_BH} THEN 'behavioral' ELSE 'non' END AS seg, ${sel}
+     FROM event_report WHERE ${split.sql} GROUP BY 1`, split.params);
+  const b = bySeg.find((r) => r.seg === "behavioral") || {};
+  const n = bySeg.find((r) => r.seg === "non") || {};
+  // The two segments never share a person, so people add up across them.
+  const cell = (prefix, k) => {
+    const bv = b[`${prefix}_${k}`] || 0;
+    const nv = n[`${prefix}_${k}`] || 0;
+    return { all: bv + nv, behavioral: bv, non: nv };
+  };
+  const label = (k) => FLAGS[k] || (k === "any" ? "Any of the above" : "All events");
+  const summary = conds.map(([k]) => ({ key: k, label: label(k), events: cell("e", k), people: cell("p", k) }));
+
+  const where = eventWhere(filters);
+  const flagSql = METRIC_KEYS.map((k) => `SUM(${k}) AS ${k}`).join(", ");
+  const anySum = `SUM(CASE WHEN ${ANY_METRIC} THEN 1 ELSE 0 END)`;
+  const repSum = "SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END)";
+  const monthRows = db.all(
+    `SELECT event_month AS month, COUNT(*) AS events, ${flagSql}, ${anySum} AS any_metric
+     FROM event_report WHERE ${where.sql} GROUP BY 1 ORDER BY 1`, where.params);
+  // Keep months with no matching events as zero rows, so the chart has no gaps.
+  const inRange = months().events.filter((m) => (!filters.from || m >= filters.from) && (!filters.to || m <= filters.to));
+  const zero = Object.fromEntries(["events", ...METRIC_KEYS, "any_metric"].map((k) => [k, 0]));
+  const trend = inRange.map((m) => monthRows.find((r) => r.month === m) || { month: m, ...zero });
+
+  const sites = db.all(
+    `SELECT COALESCE(site_home, '(Not recorded)') AS site, COUNT(*) AS events, ${repSum} AS reportable,
+            ${anySum} AS any_metric, COUNT(DISTINCT person_id) AS people
+     FROM event_report WHERE ${where.sql} GROUP BY 1 ORDER BY events DESC, site`, where.params);
+  const people = db.all(
+    `SELECT e.person_id AS id, p.display_name AS name, p.is_behavioral, COUNT(*) AS events,
+            ${repSum} AS reportable, ${anySum} AS any_metric, MAX(e.event_date) AS last_event
+     FROM event_report e JOIN person p ON p.id = e.person_id
+     WHERE ${where.sql} GROUP BY e.person_id ORDER BY events DESC, name`, where.params);
+
+  const registry = db.get(
+    "SELECT SUM(CASE WHEN is_behavioral = 1 THEN 1 ELSE 0 END) AS behavioral, SUM(is_test) AS test FROM person");
+  return {
+    flags: FLAGS,
+    summary,
+    trend,
+    sites,
+    people,
+    registry: { behavioral: registry.behavioral || 0, test: registry.test || 0 },
+  };
+}
+
+function incidentList({ from, to, site, segment, reportable, q, flag, includeDuplicates, limit = 200, offset = 0 } = {}) {
+  const where = eventWhere({ from, to, site, segment, reportable, includeDuplicates });
   if (q) {
     where.sql += " AND (member_full_name LIKE ? OR p.display_name LIKE ? OR other_event_types LIKE ? OR injury_description LIKE ?)";
     const like = `%${q}%`;
@@ -241,20 +362,20 @@ function overview() {
   const trend = m.all.slice(-12).map((month) => {
     const people = db.get(
       `SELECT COUNT(*) AS n FROM (
-         SELECT person_id FROM event_report WHERE event_month = ? AND person_id IS NOT NULL
-         UNION SELECT person_id FROM bh_enrollment WHERE report_month = ? AND person_id IS NOT NULL)`,
+         SELECT person_id FROM event_report WHERE event_month = ? AND person_id IS NOT NULL AND ${NOT_TEST}
+         UNION SELECT person_id FROM bh_enrollment WHERE report_month = ? AND person_id IS NOT NULL AND ${NOT_TEST})`,
       [month, month]).n;
     const ev = db.get(
       `SELECT COUNT(*) AS events, SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
-       FROM event_report WHERE event_month = ? AND is_exact_duplicate = 0`, [month]);
-    const bh = db.get("SELECT COUNT(DISTINCT person_id) AS n FROM bh_enrollment WHERE report_month = ?", [month]).n;
+       FROM event_report WHERE event_month = ? AND is_exact_duplicate = 0 AND ${NOT_TEST}`, [month]);
+    const bh = db.get(`SELECT COUNT(DISTINCT person_id) AS n FROM bh_enrollment WHERE report_month = ? AND ${NOT_TEST}`, [month]).n;
     return { month, people, events: ev.events, reportable: ev.reportable || 0, bh };
   });
   const sources = db.all(
     `SELECT kind, COUNT(*) AS imports, MAX(imported_at) AS last_import,
             MAX(COALESCE(report_month, '')) AS last_month, SUM(rows_inserted) AS rows
      FROM import_batch GROUP BY kind`);
-  return { latest, trend, sources, meta: meta() };
+  return { latest, trend, sources, meta: meta(), partialMonths: partialMonths() };
 }
 
 // ---- People ----------------------------------------------------------------
@@ -267,7 +388,7 @@ function peopleList({ q, limit = 500 } = {}) {
     params.push(`%${q}%`, `%${q}%`);
   }
   return db.all(
-    `SELECT p.id, p.display_name, p.is_demo,
+    `SELECT p.id, p.display_name, p.is_demo, p.is_behavioral, p.is_test,
        (SELECT COUNT(*) FROM person_alias a WHERE a.person_id = p.id) AS aliases,
        (SELECT COUNT(*) FROM event_report e WHERE e.person_id = p.id AND e.is_exact_duplicate = 0) AS events,
        (SELECT MAX(event_date) FROM event_report e WHERE e.person_id = p.id) AS last_event,
@@ -317,7 +438,7 @@ function bhRoster({ month, service }) {
        (SELECT GROUP_CONCAT(DISTINCT b2.service) FROM bh_enrollment b2 WHERE b2.person_id = b.person_id AND b2.report_month = b.report_month) AS services,
        (SELECT COUNT(*) FROM bh_enrollment b3 WHERE b3.person_id = b.person_id AND b3.service = b.service AND b3.report_month = ?) AS in_prev
      FROM bh_enrollment b LEFT JOIN person p ON p.id = b.person_id
-     WHERE b.report_month = ? AND b.service = ?
+     WHERE b.report_month = ? AND b.service = ? AND COALESCE(p.is_test, 0) = 0
      ORDER BY COALESCE(p.last_name, b.raw_name), p.first_name`, [prevMonth(month), month, service]);
   return rows.map((r) => ({
     ...r,
@@ -328,6 +449,6 @@ function bhRoster({ month, service }) {
 }
 
 module.exports = {
-  FLAGS, prevMonth, months, meta, bhDashboard, incidentsSummary, incidentList,
+  FLAGS, prevMonth, months, partialMonths, meta, bhDashboard, incidentsSummary, incidentList, behavioralMetrics,
   overview, peopleList, personDetail, reviewQueue, bhRoster,
 };

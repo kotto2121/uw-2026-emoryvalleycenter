@@ -19,36 +19,63 @@
  * Bump when the dictionaries or patterns change: on startup, every stored
  * event row is re-classified so dashboards always reflect the current rules.
  */
-const CLASSIFIER_VERSION = 2;
+const CLASSIFIER_VERSION = 3;
 
-// Real PHS option labels recovered from EVC's export (docs/chatgpt-outputs/
-// Prompt_C_event_option_labels.json + Option_label_verification.json).
-// Labels marked "inferred" were only seen inside concatenated cells; confirm
-// them against the PHS form before relying on them.
+/*
+ * Option dictionaries. Sources:
+ *  - Kristen's report workbook: its Requirements / Behavior / Medical / Other /
+ *    Tier 1 / Tier 2 tabs list every option on the PHS form (incl. unselected ones).
+ *  - Values actually seen in exports (docs/chatgpt-outputs/, sample workbook).
+ * Some labels exist in a short form (report tab) and a long form (export), e.g.
+ * "Choking episode" vs "Choking episode requiring medical intervention"; both
+ * are listed so splitting works either way (longest match wins).
+ */
 const INTERVENTION_OPTIONS = [
-  "911 Call",
-  "EMT",
-  "Emergency Room Visit",
-  "Police",
-  "Mobile Crisis Services",
-  "Urgent Care Facility",
-  "Abdominal Thrust/Back Blows/Heimlich Maneuver",
-  "Administration of PRN Psychotropic Medication", // inferred
-  "Fire Department", // inferred
-  "X-ray (to rule out fracture)", // inferred
+  "911 Call", "EMT", "Emergency Room Visit", "Hospital Emergency Room", "Urgent Care Facility", "Fire Department",
+  "Police", "Incarceration", "Incarceration Admission", "Incarceration Discharge",
+  "Mobile Crisis Services", "MH Mobile Crisis Team",
+  "CPR", "Automated External Defibrillator (AED)/CPR",
+  "Abdominal Thrust/Back Blows/Heimlich Maneuver", "Abdominal Thrust (Heimlich)",
+  "X-ray (to rule out fracture)", "X-Ray to rule out fracture",
+  "Emergency Psychotropic Medication", "Administration of PRN Psychotropic Medication",
+  "Manual Restraint", "Mechanical Restraint", "Protective Equipment",
+  "Hospitalization - Medical", "Hospitalization - Psychiatric",
+  "Hospitalization – Medical (Planned or Unplanned) Admission", "Hospitalization – Psychiatric Admission",
+  "Hospitalization – Medical Discharge", "Hospitalization – Psychiatric Discharge",
+  "Assisted Care Living Facility Admission", "Assisted Care Living Facility Discharge",
+  "Skilled Nursing Facility Admission", "Skilled Nursing Facility Discharge",
+  "ICF/IID Admission", "ICF/IID Discharge",
 ];
 
 const BEHAVIORAL_OPTIONS = [
   "Behavioral Crisis requiring crisis intervention",
+  "Behavioral Crisis requiring emergency psychotropic medication",
+  "Behavioral Crisis requiring protective equipment, manual or mechanical restraints, regardless of type or time used or approved by plan of care",
   "Engagement with Law Enforcement",
+  "Criminal Conduct or Probable Criminal Conduct",
   "Physical Aggression",
-  "Psychiatric Admission (for observation) including in an acute care hospital", // inferred
-  "Reportable Behavior involving physical aggression and/or self-injurious behavior resulting in injury to another person", // inferred
-  "Self-Injurious Behavior", // inferred
-  "Suicide Attempt", // inferred
-  // "Housemate" / "Staff" appear to be sub-choices (who was targeted), not event types.
+  "Sexual Aggression",
+  "Property Destruction exceeding $100",
+  "Psychiatric Admission (for observation) including in an acute care hospital",
+  "Psychiatric Admission",
+  "Reportable Behavior involving physical aggression and/or self-injurious behavior resulting in injury to another person",
+  "Self-Injurious Behavior",
+  "Suicide Attempt",
+  // Sub-choices (who was targeted), not event types:
   "Housemate",
   "Staff",
+];
+
+const MEDICAL_OPTIONS = [
+  "UTI", "Skin Infection", "Cellulitis", "MRSA", "Sepsis", "Pneumonia", "Flu", "Fecal Impaction",
+  "Severe Dehydration requiring medical treatment by a medical professional", "Severe Dehydration",
+  "Severe Allergic Reaction requiring medical treatment by a medical professional", "Severe Allergic Reaction",
+  "Choking episode requiring medical intervention", "Choking episode",
+  "Seizure Progressing to Status Epilepticus",
+  "Pressure Ulcer/Decubitus Ulcer",
+  "Insect or animal bite",
+  "Serious Injury of Known Cause",
+  "Deaths (other than those that are unexpected/unexplained)",
 ];
 
 const TIER_OPTIONS = [
@@ -56,31 +83,97 @@ const TIER_OPTIONS = [
   "Alleged Physical Abuse",
   "Alleged Sexual Abuse",
   "Alleged Neglect",
+  "Alleged Exploitation of a Person Supported",
+  "Alleged Financial Exploitation Exceeding $1,000",
+  "Alleged Exploitation Exceeding $1,000",
+  "Alleged Financial Exploitation",
   "Death-Unexpected and/or Unexplained",
+  "Serious Injury of Unknown Cause",
+  "Suspicious Injury",
+];
+
+// Single-select fields: full option lists (from Kristen's report tabs + exports),
+// used so report tables show every option, including zeros.
+const LOCATION_OPTIONS = ["Home - Inside", "Home - Outside", "Community - Supervised", "Community - Unsupervised", "Day Program / Work / School", "Volunteer Site", "Vehicle", "Unknown"];
+const INJURY_OPTIONS = ["No Injury", "Minor Injury", "Serious Injury"];
+const OBSERVATION_OPTIONS = [
+  "Witnessed by Provider Staff", "Discovered by Provider Staff",
+  "Witnessed by Therapy Personnel", "Discovered by Therapy Personnel",
+  "Witnessed by Medical Personnel", "Discovered by Medical Personnel",
+  "Witnessed by DIDD/TennCare Staff", "Discovered by DIDD/TennCare Staff",
+  "Witnessed by Other Service Provider", "Discovered by Other Service Provider",
+  "Witnessed by Person Supported/Other Persons Supported", "Discovered by Person Supported/Other Persons Supported",
+  "Witnessed by Family Member", "Discovered by Family Member",
+  "Witnessed by Conservator/Legal Representative", "Discovered by Conservator/Legal Representative",
+  "Witnessed by Law Enforcement", "Discovered by Law Enforcement",
+  "Witnessed by APS/DCS", "Discovered by APS/CPS",
+  "Witnessed by Private Citizen", "Discovered by Private Citizen",
+  "Witnessed by Other", "Discovered by Other",
+];
+const OTHER_OPTIONS = [
+  "Other - self injurious behaviors; disruptive behaviors", "Other - Aggression", "Other - medical",
+  "Falls with injury", "Minor – Vehicle accident while transporting person", "Serious – Vehicle accident",
+  "Medication Variance and Omission", "Missing Person (>1 hour)", "Unsafe Environment", "Emergency Situations",
+  "Enabling Technology Remote Supports", "Positive COVID-19 Test Result", "Victim of Fire",
+  "Administration of Routine Psychotropic Medication without Consent",
 ];
 
 /**
  * Flag name -> pattern searched across the classification + intervention text.
- * Mapping agreed from Prompt C's dashboard_mapping, with its cautions:
- *  - hospitalization: psychiatric admission only (Medical Events is blank in the
- *    export, so medical admissions are NOT captured).
- *  - crisis: a behavioral crisis event OR Mobile Crisis involvement (not proof a
- *    phone call happened).
- *  - property damage: PHS has no option for it; only narrative mentions in
- *    "Other Event Types" are counted, so treat as a floor, not a total.
- *  - self-injury: the strict labels only; the broad "Other - self injurious
- *    behaviors; disruptive behaviors" category is reported separately.
+ * These are the definitions behind every dashboard tile (see docs/metrics.md):
+ *  - hospitalization: psychiatric admission (behavioral field) OR a medical/psychiatric
+ *    hospitalization intervention. ER visits are NOT hospitalizations.
+ *  - police: Engagement with Law Enforcement, the Police intervention, or Incarceration.
+ *  - crisis: any "Behavioral Crisis requiring …" option or Mobile Crisis / MH Mobile
+ *    Crisis Team involvement (PHS has no "crisis call" option).
+ *  - property damage: the "Property Destruction exceeding $100" option, plus narrative
+ *    mentions in "Other Event Types".
+ *  - self-injury: "Self-Injurious Behavior" or "Suicide Attempt" only; the broad
+ *    "Other - self injurious behaviors; disruptive behaviors" category is reported separately.
+ *  - restraint: restrictive interventions (manual/mechanical restraint, protective
+ *    equipment, emergency psychotropic medication).
  */
 const FLAG_PATTERNS = {
   f_911: /911 Call/i,
   f_emt: /EMT/, // case-sensitive; PHS glues labels together ("911 CallEMTEmergency…")
-  f_er: /Emergency Room Visit/i,
-  f_hospitalization: /Psychiatric Admission|hospitaliz|hospital admission/i,
-  f_police: /Engagement with Law Enforcement|Police/i,
-  f_crisis: /Behavioral Crisis requiring crisis intervention|Mobile Crisis/i,
-  f_property_damage: /property damage|damag(ed|ing) (the )?property|destruction of property|destroyed property/i,
+  f_er: /Emergency Room Visit|Hospital Emergency Room/i,
+  f_hospitalization: /Psychiatric Admission|Hospitalization|hospitaliz|hospital admission/i,
+  f_police: /Engagement with Law Enforcement|Police|Incarceration/i,
+  f_crisis: /Behavioral Crisis requiring|Mobile Crisis/i,
+  f_property_damage: /Property Destruction|property damage|damag(ed|ing) (the )?property|destruction of property|destroyed property/i,
   f_self_injury: /Self-Injurious Behavior|Suicide Attempt/,
+  f_restraint: /Manual Restraint|Mechanical Restraint|Protective Equipment|Emergency Psychotropic Medication|emergency psychotropic medication|restraints?, regardless/i,
 };
+
+/**
+ * Keyword categories for "Other Event Types", which mixes PHS short categories
+ * with free text, typos and case variants, so an option list can't split it.
+ * Labels and terms follow EVC's Behavioral Reporting workbook (its Other tab),
+ * so the counts can be checked against it. One event can match several.
+ */
+const OTHER_CATEGORIES = [
+  ["Self-injurious behaviors", /self[- ]?injur/i],
+  ["Disruptive behaviors", /disruptive/i],
+  ["Aggression", /aggress/i],
+  ["Screaming", /scream/i],
+  ["Agitation", /agitat/i],
+  ["Vehicle accident", /vehicle accident/i],
+  ["Falls with injury", /falls? with injury/i],
+  ["Medication Variance", /medication variance/i],
+  ["Unsafe Environment", /unsafe environment/i],
+  ["Missing Person", /missing person/i],
+  ["Emergency Situations", /emergency situation/i],
+  ["Positive COVID-19", /covid/i],
+  ["Victim of Fire", /victim of fire/i],
+  ["Routine Psychotropic Medication", /routine psychotropic/i],
+  ["Enabling Technology Remote Supports", /enabling technology|remote support/i],
+];
+
+/** -> labels of every category whose pattern matches the text. */
+function categorize(text, categories) {
+  const s = String(text || "");
+  return categories.filter(([, re]) => re.test(s)).map(([label]) => label);
+}
 
 /** The text fields searched for flags (narratives included on purpose). */
 const FLAG_SOURCE_FIELDS = [
@@ -123,9 +216,16 @@ function splitOptions(text, dictionary = INTERVENTION_OPTIONS) {
 module.exports = {
   CLASSIFIER_VERSION,
   TIER_OPTIONS,
+  MEDICAL_OPTIONS,
+  LOCATION_OPTIONS,
+  INJURY_OPTIONS,
+  OBSERVATION_OPTIONS,
+  OTHER_OPTIONS,
   INTERVENTION_OPTIONS,
   BEHAVIORAL_OPTIONS,
   FLAG_PATTERNS,
+  OTHER_CATEGORIES,
   computeFlags,
   splitOptions,
+  categorize,
 };

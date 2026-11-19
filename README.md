@@ -6,11 +6,13 @@ A **local-first desktop dashboard** for Emory Valley Center (EVC). It runs entir
 
 1. **Import** the PHS *New Reportable Event Report* (.xlsx) and the monthly *Behavioral Health roster* Word document (.docx).
 2. **Match people across files** without a client ID: a person registry with name normalization and fuzzy matching. Close-but-uncertain matches go to a **Review Queue** for a human decision, and every decision is remembered.
-3. **Dashboards:** Overview, Behavioral Health (OP / PSR enrollment plus crisis indicators) and Incidents & Safety, with filters by month and site and month-over-month trends.
+3. **Dashboards:** Overview, Behavioral Health (OP / PSR enrollment plus crisis indicators), Incidents & Safety and Behavioral Metrics (each metric split Behavioral / Non-Behavioral, monthly trend, by site, by person), with filters by month, site, segment and reportability. People can be marked **Behavioral** (a BH roster import ticks it to start) or **Test** (left out of every count) on their page.
 4. **Reports:** the monthly OP and PSR reports that used to be built by hand, exported as Excel or printed.
 5. **Roadmap pages** for every other program in EVC's Data Metric Goals.
 
 It also ships with **six months of fictitious demo data** that statistically mirrors the real PHS export (see `api/lib/demo.js`).
+
+> **Full documentation is in [`docs/`](docs/README.md):** the user guide, metric definitions, how the parsers work, person matching, architecture, privacy, the developer guide, limitations and troubleshooting.
 
 ## Architecture
 
@@ -22,7 +24,8 @@ electron/        main process: splash → local API → main window
 api/             Express API (127.0.0.1 only, token required on /api/*)
   server.js      routes (documented in api/README.md)
   lib/           incidents-xlsx.js (Excel reader), docx-tables.js (Word table reader),
-                 importer.js, queries.js (dashboards), reports.js (Excel export), demo.js
+                 importer.js, queries.js (dashboards), reports.js (Excel export), demo.js,
+                 xlsx-read.js (tolerant .xlsx reader)
 db/              SQLite via sql.js (pure WASM — no native build tools)
   index.js       schema, atomic saves, automatic backups
   names.js       name parsing, nicknames, Jaro–Winkler similarity
@@ -30,9 +33,10 @@ db/              SQLite via sql.js (pure WASM — no native build tools)
   classify.js    PHS option dictionaries + crisis/police/hospitalization flags
 app/             Next.js (pages router) static export → app/out
   components/    Layout (sidebar/topbar), charts, KPI tiles, drawer, icons, logo
-  pages/         index (Overview), behavioral-health, incidents, import, review,
+  pages/         index (Overview), behavioral-health, incidents, metrics, import, review,
                  people, reports, programs (roadmap), settings — see app/README.md
-docs/            chatgpt-prompt.md — prompts to run on EVC's ChatGPT (structure only, no PHI)
+docs/            user guide, metrics, parsing, matching, architecture, privacy, dev guide, limitations;
+                 chatgpt-prompt.md + chatgpt-outputs/ (structure-only analysis of real files)
 demo-data/       generated fictitious files for testing the import flow
 
 **Docs:** routes + running the API standalone → [`api/README.md`](api/README.md) · frontend pages & wiring → [`app/README.md`](app/README.md)

@@ -10,7 +10,32 @@
 const crypto = require("crypto");
 const db = require("../../db");
 const { createResolver } = require("../../db/people");
-const { computeFlags } = require("../../db/classify");
+const C = require("../../db/classify");
+const { computeFlags, splitOptions } = C;
+
+// Multi-select columns and the dictionary used to split them.
+const OPTION_FIELDS = [
+  ["event_interventions", C.INTERVENTION_OPTIONS, "Event Interventions"],
+  ["behavioral_psychiatric_events", C.BEHAVIORAL_OPTIONS, "Behavioral/Psychiatric Events"],
+  ["medical_events", C.MEDICAL_OPTIONS, "Medical Events"],
+  ["tier_1_events", C.TIER_OPTIONS, "Tier 1 Events"],
+  ["tier_2_events", C.TIER_OPTIONS, "Tier 2 Events"],
+];
+
+/** Option text the dictionaries don't recognise (so they can be updated, not silently miscounted). */
+function unrecognizedOptions(rows) {
+  const out = [];
+  for (const [field, dict, label] of OPTION_FIELDS) {
+    const seen = new Map();
+    for (const r of rows) {
+      if (!r[field]) continue;
+      const { unparsed } = splitOptions(r[field], dict);
+      if (unparsed) seen.set(unparsed.slice(0, 80), (seen.get(unparsed.slice(0, 80)) || 0) + 1);
+    }
+    for (const [text, n] of seen) out.push({ column: label, text, rows: n });
+  }
+  return out.sort((a, b) => b.rows - a.rows);
+}
 const { normalizeValue } = require("../../db/normalize");
 const { FIELDS } = require("./incidents-xlsx");
 
@@ -23,7 +48,8 @@ function hashRow(rec, occurrence) {
   return h.digest("hex");
 }
 
-function importIncidents({ rows, filename, isDemo = false, warnings = [] }) {
+function importIncidents({ rows, filename, isDemo = false, warnings: initialWarnings = [] }) {
+  let warnings = initialWarnings;
   return db.tx(() => {
     const { lastId: batchId } = db.run(
       "INSERT INTO import_batch (kind, filename, is_demo) VALUES ('incident_xlsx', ?, ?)",
@@ -67,8 +93,13 @@ function importIncidents({ rows, filename, isDemo = false, warnings = [] }) {
       inserted++;
     }
 
+    const unknown = unrecognizedOptions(rows);
+    if (unknown.length) {
+      warnings = [...warnings, `${unknown.length} option label(s) weren't recognised and are counted as "Unrecognized option": ${unknown.slice(0, 5).map((u) => `${u.column}: "${u.text}" (${u.rows})`).join("; ")}${unknown.length > 5 ? "; …" : ""}. Add them to db/classify.js.`];
+    }
     const summary = {
       batchId,
+      unrecognizedOptions: unknown,
       rowsRead: rows.length,
       inserted,
       alreadyImported: skipped,
@@ -113,6 +144,9 @@ function importRoster({ entries, month, filename, isDemo = false }) {
         : {};
       if (!name || !["OP", "PSR"].includes(e.service)) continue;
       const personId = resolver.resolve(name);
+      // Initial roster setup: being on a BH roster marks the person Behavioral,
+      // unless someone already set the box by hand on their page (0 or 1).
+      db.run("UPDATE person SET is_behavioral = 1 WHERE id = ? AND is_behavioral IS NULL", [personId]);
       const r = db.run(
         `INSERT OR IGNORE INTO bh_enrollment (batch_id, person_id, raw_name, service, report_month, extra_json)
          VALUES (?, ?, ?, ?, ?, ?)`,

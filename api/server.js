@@ -23,7 +23,7 @@ const { importIncidents, importRoster, deleteBatch } = require("./lib/importer")
 const uploads = require("./lib/uploads");
 const { FIELDS, REQUIRED, squash } = require("./lib/incidents-xlsx");
 const { generateDemoFiles } = require("./lib/demo");
-const { bhRosterWorkbook } = require("./lib/reports");
+const { bhRosterWorkbook, incidentReportWorkbook } = require("./lib/reports");
 const q = require("./lib/queries");
 
 const MAX_UPLOAD = "40mb";
@@ -76,6 +76,10 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
   app.get("/api/incidents/summary", h(async (req, res) => {
     await db.getDb();
     res.json(q.incidentsSummary(filtersFrom(req.query)));
+  }));
+  app.get("/api/metrics", h(async (req, res) => {
+    await db.getDb();
+    res.json(q.behavioralMetrics(filtersFrom(req.query)));
   }));
   app.get("/api/incidents", h(async (req, res) => {
     await db.getDb();
@@ -305,12 +309,29 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
     if (!d) return res.status(404).json({ error: "person not found" });
     res.json(d);
   }));
+  // Body: any of { display_name: string, is_behavioral: boolean, is_test: boolean }.
   app.patch("/api/people/:id", h(async (req, res) => {
     await db.getDb();
-    const name = String(req.body?.display_name || "").trim();
-    if (!name) return res.status(400).json({ error: "display_name is required" });
-    db.tx(() => db.run("UPDATE person SET display_name = ? WHERE id = ?", [name, Number(req.params.id)]));
-    res.json({ ok: true });
+    const body = req.body || {};
+    const id = Number(req.params.id);
+    const sets = [];
+    const params = [];
+    if ("display_name" in body) {
+      const name = String(body.display_name || "").trim();
+      if (!name) return res.status(400).json({ error: "display_name can't be blank" });
+      sets.push("display_name = ?");
+      params.push(name);
+    }
+    for (const flag of ["is_behavioral", "is_test"]) {
+      if (!(flag in body)) continue;
+      if (typeof body[flag] !== "boolean") return res.status(400).json({ error: `${flag} must be true or false` });
+      sets.push(`${flag} = ?`);
+      params.push(body[flag] ? 1 : 0);
+    }
+    if (!sets.length) return res.status(400).json({ error: "send display_name, is_behavioral or is_test" });
+    if (!db.get("SELECT 1 FROM person WHERE id = ?", [id])) return res.status(404).json({ error: "person not found" });
+    db.tx(() => db.run(`UPDATE person SET ${sets.join(", ")} WHERE id = ?`, [...params, id]));
+    res.json({ ok: true, person: db.get("SELECT id, display_name, is_behavioral, is_test FROM person WHERE id = ?", [id]) });
   }));
   app.get("/api/reviews", h(async (req, res) => { await db.getDb(); res.json({ reviews: q.reviewQueue({ status: req.query.status || "pending" }) }); }));
   app.post("/api/reviews/:id", h(async (req, res) => {
@@ -333,6 +354,16 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
     if (!month || services.some((s) => !["OP", "PSR"].includes(s))) return res.status(400).json({ error: "bad month/service" });
     const buf = await bhRosterWorkbook({ month, services });
     const name = `BH Roster ${services.join("+")} ${month}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+    res.send(buf);
+  }));
+
+  app.get("/api/reports/incidents.xlsx", h(async (req, res) => {
+    await db.getDb();
+    const f = filtersFrom(req.query);
+    const buf = await incidentReportWorkbook(f);
+    const name = `Incident Report ${f.from || "start"} to ${f.to || "latest"}.xlsx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
     res.send(buf);
@@ -398,6 +429,8 @@ function filtersFrom(query) {
     to: /^\d{4}-\d{2}$/.test(query.to || "") ? query.to : undefined,
     site: query.site || undefined,
     includeDuplicates: query.includeDuplicates === "1",
+    segment: ["behavioral", "non"].includes(query.segment) ? query.segment : undefined,
+    reportable: ["reportable", "non"].includes(query.reportable) ? query.reportable : undefined,
   };
 }
 

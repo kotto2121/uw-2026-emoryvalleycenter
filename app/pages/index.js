@@ -4,7 +4,7 @@ import Icon from "../components/Icon";
 import Logo from "../components/Logo";
 import { useMeta } from "../components/Layout";
 import LoadDemoButton from "../components/LoadDemoButton";
-import { Button, Card, Empty, Kpi, Skeleton, useAsync } from "../components/ui";
+import { Button, Card, Empty, Kpi, PartialMonthNotice, Skeleton, useAsync } from "../components/ui";
 import { TrendBars, TrendLines, SERIES } from "../components/charts";
 import { api } from "../lib/api";
 import { fmt, greeting, monthLabel, relativeTime } from "../lib/format";
@@ -43,8 +43,10 @@ export default function Overview() {
   if (!meta.hasData) return <Welcome />;
 
   const trend = data?.trend || [];
-  const cur = trend[trend.length - 1] || {};
-  const prev = trend[trend.length - 2] || {};
+  const partial = data?.partialMonths || {};
+  const complete = trend.filter((t) => !partial[t.month]);
+  const cur = complete[complete.length - 1] || {};
+  const prev = complete[complete.length - 2] || {};
   const live = PROGRAMS.filter((p) => p.status === "live");
   const planned = PROGRAMS.filter((p) => p.status !== "live");
   const sourceNames = { incident_xlsx: ["PHS event report", "file"], bh_docx: ["Behavioral health roster", "file"] };
@@ -55,7 +57,7 @@ export default function Overview() {
         <div style={{ position: "relative" }}>
           <div className="eyebrow">{greeting()}</div>
           <h1>Emory Valley Center at a glance</h1>
-          <p>Data through <strong style={{ color: "#fff" }}>{monthLabel(data?.latest)}</strong>, from {fmt(meta.imports)} imported files. {meta.pending_reviews > 0 && <>There {meta.pending_reviews === 1 ? "is" : "are"} <Link href="/review" style={{ color: "#c8e6a0", textDecoration: "underline" }}>{meta.pending_reviews} possible duplicate {meta.pending_reviews === 1 ? "person" : "people"}</Link> to confirm.</>}</p>
+          <p>Figures for <strong style={{ color: "#fff" }}>{monthLabel(cur.month)}</strong> (latest complete month), from {fmt(meta.imports)} imported files. {meta.pending_reviews > 0 && <>There {meta.pending_reviews === 1 ? "is" : "are"} <Link href="/review" style={{ color: "#c8e6a0", textDecoration: "underline" }}>{meta.pending_reviews} possible duplicate {meta.pending_reviews === 1 ? "person" : "people"}</Link> to confirm.</>}</p>
         </div>
         <div className="hero-stats">
           <div className="hero-stat"><strong>{fmt(meta.people)}</strong><span>people in registry</span></div>
@@ -64,6 +66,8 @@ export default function Overview() {
         </div>
         <div className="hero-art"><Logo size={260} /></div>
       </div>
+
+      <PartialMonthNotice partialMonths={partial} />
 
       <div className="grid cols-4">
         <Kpi label="People in records this month" icon="users" value={cur.people} previous={prev.people} delay={0} accent />

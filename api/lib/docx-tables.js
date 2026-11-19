@@ -134,7 +134,10 @@ function findMonth(text) {
 // Service signals. EVC's roster calls outpatient therapy "Individual Therapy".
 const PSR_RE = /psycho[\s-]?social|\bP\.?S\.?R\.?\b/i;
 const OP_RE = /\bout[\s-]?patient\b|\bO\.?P\.?\b|individual therapy|\btherapist\b|\btherapy\b/i;
-const NAME_HDR_RE = /\b(name|client|member|individual|person|consumer|participant)\b/i;
+// A header cell naming the client column — the WHOLE cell must be a header
+// phrase ("Client Name", "Member's Full Name", "Individual"), so a client
+// called "Member 104" or a surname like "Person" is never mistaken for one.
+const NAME_HDR_RE = /^((client|member|individual|person|consumer|participant)('s)?\s+)?(full\s+)?name$|^(clients?|members?|individuals?|persons?|consumers?|participants?|people)$/i;
 const KNOWN_HDR_RE = /^(site|home|location|frequency|freq|day|days|time|schedule|staff|clinician|therapist|name|client( name)?|notes?|status|start( date)?|admission( date)?)$/i;
 const FREQ_RE = /^(weekly|bi-?weekly|monthly|daily|\d+\s*[xX]\s*(\/|per\s*)?\s*(wk|week|mo|month)|\d+\s*[mMwW]|\(?one per (week|month)\)?|as needed|prn)$/i;
 const SCHEDULE_RE = /\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)\b.*\d{1,2}(:\d{2})?\s*(am|pm)?|total\s*:/i;
@@ -161,8 +164,12 @@ function splitStatus(cell) {
 }
 
 /** Does this cell look like a person's name ("First Last", "First M. Last", "Last, First")? */
+// De-identified tokens or IDs used instead of names: "Member 104", "Person 2973".
+const TOKEN_NAME_RE = /^\p{L}+[ -]?\d{1,7}$/u;
+
 function looksLikeName(s) {
   s = splitStatus(s).name;
+  if (s && TOKEN_NAME_RE.test(s)) return true;
   if (!s || s.length > 45 || /\d|:|\(|\)/.test(s) || SCHEDULE_RE.test(s) || FREQ_RE.test(s)) return false;
   const W = "[\\p{L}'’.-]+";
   return new RegExp(`^${W},\\s*${W}(\\s+${W})*$`, "u").test(s) || new RegExp(`^${W}(\\s+${W}){1,3}$`, "u").test(s);

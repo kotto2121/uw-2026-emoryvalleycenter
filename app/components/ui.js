@@ -219,3 +219,18 @@ export function Toaster() {
     </div>
   );
 }
+
+/** Banner for months whose data looks incomplete (export pulled mid-month). */
+export function PartialMonthNotice({ partialMonths }) {
+  const entries = Object.entries(partialMonths || {});
+  if (!entries.length) return null;
+  const [m, last] = entries[0];
+  const [y, mo] = m.split("-").map(Number);
+  const name = new Date(Date.UTC(y, mo - 1, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const lastLabel = new Date(last + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return (
+    <Callout tone="warn" icon="calendar" title={`${name} looks incomplete.`}>
+      The newest events are from {lastLabel}, so the export was probably pulled mid-month. {name} is shown in trends but isn&rsquo;t used as &ldquo;this month&rdquo; in comparisons.
+    </Callout>
+  );
+}

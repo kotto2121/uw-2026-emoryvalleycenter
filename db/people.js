@@ -24,7 +24,7 @@ const REVIEW_THRESHOLD = 0.82;
 /** Per-import cache of every known alias, parsed once. */
 function createResolver({ source, isDemo = false } = {}) {
   const known = db
-    .all("SELECT person_id, raw_name FROM person_alias")
+    .all("SELECT person_id, raw_name FROM person_alias WHERE norm_key NOT LIKE 'id|%'")
     .map((r) => ({ personId: r.person_id, parsed: parseName(r.raw_name) }));
   const distinct = new Set(
     db.all("SELECT a, b FROM person_distinct").map((r) => `${r.a}:${r.b}`)
@@ -51,6 +51,25 @@ function createResolver({ source, isDemo = false } = {}) {
       stats.exact++;
       seen.set(rk, exact.person_id);
       return exact.person_id;
+    }
+
+    // ID-like "names" ("Person 123", "Member 001", a client number): these are
+    // identifiers, not spellings — match them exactly, never fuzzily, or every
+    // token would look like a near-duplicate of every other one.
+    if (/\d/.test(raw)) {
+      const display = String(raw).trim().replace(/\s+/g, " ");
+      const { lastId: personId } = db.run(
+        "INSERT INTO person (display_name, first_name, last_name, is_demo) VALUES (?, NULL, NULL, ?)",
+        [display, isDemo ? 1 : 0]
+      );
+      db.run(
+        `INSERT OR IGNORE INTO person_alias (person_id, raw_name, raw_key, norm_key, source, how)
+         VALUES (?, ?, ?, ?, ?, 'new')`,
+        [personId, display, rk, `id|${rk}`, source]
+      );
+      stats.created++;
+      seen.set(rk, personId);
+      return personId;
     }
 
     const parsed = parseName(raw);
@@ -121,6 +140,13 @@ function mergePeople(keepId, dropId) {
     const other = a === dropId ? b : a;
     if (other !== keepId) markDistinct(keepId, other);
   }
+  // Carry the report flags over: test if either was, behavioral if either was
+  // (still NULL only when neither record was ever set).
+  const flags = db.get(
+    `SELECT MAX(is_test) AS is_test,
+            CASE WHEN COUNT(is_behavioral) = 0 THEN NULL ELSE MAX(is_behavioral) END AS is_behavioral
+     FROM person WHERE id IN (?, ?)`, [keepId, dropId]);
+  db.run("UPDATE person SET is_test = ?, is_behavioral = ? WHERE id = ?", [flags.is_test || 0, flags.is_behavioral, keepId]);
   db.run("DELETE FROM person WHERE id = ?", [dropId]);
 }
 

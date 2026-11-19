@@ -37,8 +37,9 @@ const SENTINELS = new Set([
   "null",
   "nil",
   "n",
-  "unk",       // 'unknown' kept distinct; these are abbreviations
-  "unknown",
+  "unk",       // abbreviation only. NOT "unknown": PHS Event Location has a real
+               // "Unknown" option, counted as populated (see schema profile).
+  "nodatareported", // "No Data Reported" / "*No Data Reported" placeholders in hand-edited copies
   "notapplicable",
   "notrecorded",
   "notavailable",
