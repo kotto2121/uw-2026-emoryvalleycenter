@@ -43,5 +43,5 @@ ses_724f0fd1 · Graceful schema-disc
  ▒▒▒▒▒░░░░░  import.js ██░░░░
  shape: ▓S▓TTT▓TT▓
  tools: files.script×16 files.read×15 files.edit×12 tasks.d…
- tasks: ████████░░ 5/6
+ tasks:            0/0
 ```
