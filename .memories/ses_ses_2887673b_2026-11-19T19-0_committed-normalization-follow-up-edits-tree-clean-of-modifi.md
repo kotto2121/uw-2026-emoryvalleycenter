@@ -32,9 +32,17 @@ Committed normalization follow-up edits; tree clean of modified tracked files
 Committed api/lib/importer.js and api/lib/incidents-xlsx.js (3f67750) using a direct git script, since run.git refuses commits of files not modified in this session and the user explicitly overrode the other-session-ownership guardrail. Verified: working tree has no modified tracked files; commit stat shows both files (17 insertions, 7 deletions). Harness state (.memories/, .reflections/) left untracked per guardrail.
 
 ```sigil
-ses_2887673b · Committed normalizat
- (no files changed)
- shape: ▒▒S▒▒▒UT▒░
- tools: run.git×2 episode.finish×1 episode.prepare×1 episod…
- tasks: ██████████ 1/1
+ses_2887673b · Rebased onto remote 
+ ▒▒▒▒▒░░░░░  check-conflict.sh █░░░░░
+ ▒▒▒▒▒░░░░░  conflict-detail.sh █░░░░░
+ ▒▒▒▒▒░░░░░  continue-rebase.sh █░░░░░
+ ▒▒▒▒▒░░░░░  dbconflict.sh █░░░░░
+ ▒▒▒▒▒░░░░░  qconflict.sh █░░░░░
+ ▒▒▒▒▒░░░░░  rebase-continue2.sh █░░░░░
+ ▒▒▒▒▒░░░░░  verify-push.sh █░░░░░
+ ▒▒▒▒▒░░░░░  verify-syntax.sh █░░░░░
+ +2 more
+ shape: S▓▓▓▓▓▓▒▓T
+ tools: files.script×9 run.script×9 files.edit×4 files.read…
+ tasks:            0/0
 ```
