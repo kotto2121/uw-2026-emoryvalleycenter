@@ -16,19 +16,7 @@ function slugify(s) {
 function tokens(s) {
   return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
 }
-function bigrams(s) {
-  const t = ` ${s} `; const out = [];
-  for (let i = 0; i < t.length - 1; i++) out.push(t.slice(i, i + 2));
-  return out;
-}
-function similarity(a, b) {
-  const A = bigrams(a), B = bigrams(b);
-  if (!A.length || !B.length) return 0;
-  let hits = 0;
-  for (const g of A) { const i = B.indexOf(g); if (i !== -1) { hits++; B.splice(i, 1); } }
-  return (2 * hits) / (A.length + B.length);
-}
-const SUGGEST_THRESHOLD = 0.45;
+const SUGGEST_THRESHOLD = 0.6;
 function suggestDecision(header, knownFields = []) {
   const h = String(header || "").trim();
   const hSq = h.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -40,8 +28,9 @@ function suggestDecision(header, knownFields = []) {
     if (f.toLowerCase() === h.toLowerCase() || f === hSq || f === slugify(h)) score = 1;
     else {
       const fToks = new Set(tokens(f.replace(/_/g, " ")));
-      const overlap = [...hToks].filter((t) => fToks.has(t)).length;
-      score = Math.max(overlap / Math.min(hToks.size, fToks.size) * 0.9, similarity(hSq, f.replace(/_/g, "")));
+      const inter = [...hToks].filter((t) => fToks.has(t)).length;
+      const union = new Set([...hToks, ...fToks]).size;
+      score = union ? inter / union : 0;
     }
     if (score > bestScore) { bestScore = score; best = f; }
   }
