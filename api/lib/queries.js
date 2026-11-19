@@ -11,6 +11,7 @@
  */
 const db = require("../../db");
 const { splitOptions, INTERVENTION_OPTIONS, BEHAVIORAL_OPTIONS, TIER_OPTIONS } = require("../../db/classify");
+const { compareKey } = require("../../db/normalize");
 
 const FLAGS = {
   f_hospitalization: "Hospitalizations",
@@ -111,9 +112,31 @@ function groupCount(column, where, { limit = 0 } = {}) {
   const rows = db.all(
     `SELECT COALESCE(${column}, '(Not recorded)') AS label, COUNT(*) AS n
      FROM event_report WHERE ${where.sql} GROUP BY 1 ORDER BY n DESC`, where.params);
-  if (!limit || rows.length <= limit) return rows;
-  const head = rows.slice(0, limit);
-  const rest = rows.slice(limit).reduce((s, r) => s + r.n, 0);
+  // Deterministically merge cosmetic variants (case/punctuation/whitespace
+  // differences only) via compareKey. Canonical label = highest-count variant,
+  // alphabetical tie-break. NULL/blank stays its own '(Not recorded)' bucket.
+  const merged = new Map(); // key -> { label, n }
+  for (const { label, n } of rows) {
+    if (label === "(Not recorded)") {
+      const cur = merged.get("(Not recorded)") || { label, n: 0 };
+      cur.n += n;
+      merged.set("(Not recorded)", cur);
+      continue;
+    }
+    const key = compareKey(label);
+    const cur = merged.get(key);
+    if (!cur || n > cur.n || (n === cur.n && label < cur.label)) {
+      merged.set(key, { label, n: (cur ? cur.n : 0) + n, _key: key });
+    } else {
+      cur.n += n;
+    }
+  }
+  const out = [...merged.values()]
+    .map(({ label, n }) => ({ label, n }))
+    .sort((a, b) => b.n - a.n);
+  if (!limit || out.length <= limit) return out;
+  const head = out.slice(0, limit);
+  const rest = out.slice(limit).reduce((s, r) => s + r.n, 0);
   return [...head, { label: "All other", n: rest }];
 }
 
