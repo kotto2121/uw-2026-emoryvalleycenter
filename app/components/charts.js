@@ -112,6 +112,8 @@ export function Spark({ data, dataKey, color = SERIES[0], height = 56 }) {
               <stop offset="100%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
+          {/* Hidden axis so the tooltip's label is the month, not the point's index. */}
+          <XAxis dataKey="month" hide />
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: "#c9d1cc" }} />
           <Area type="monotone" dataKey={dataKey} name="Count" stroke={color} strokeWidth={2} fill={`url(#sp-${dataKey})`} dot={false} activeDot={{ r: 3.5 }} animationDuration={700} />
         </AreaChart>
