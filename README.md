@@ -68,18 +68,9 @@ To run only the UI in a browser: `npm run dev:api` plus `npm run dev:ui`, then o
 
 ## Build for Kristen's Windows laptop
 
-On a Windows machine with Node.js LTS:
+One command builds the installer + portable exe: `npm run dist:win` (works on Windows and cross-builds from macOS). Better: **GitHub Actions builds it on a real Windows runner and smoke-tests the packaged exe before you download it** — Actions → "Build Windows app" → Artifacts. The exe is unsigned, so SmartScreen will warn; **test on her laptop early** — IT policy (AppLocker or Defender) may block unsigned apps entirely.
 
-```powershell
-npm install
-npm run dist:win
-```
-
-The build bundles the main process, API and database layer into `dist/main.js` with esbuild (`npm run build:main`), so the packaged app ships **no `node_modules`**. electron-builder's dependency collection had silently dropped a nested package, and the app crashed on start.
-
-Easier: every push builds on GitHub Actions (`.github/workflows/build-windows.yml`). The workflow also **launches the packaged .exe on Windows as a self-test** (`EVC_SMOKE_TEST`) before uploading it. Download it from Actions → "Build Windows app" → Artifacts.
-
-`release/` will contain an **NSIS installer** and a **portable .exe**. Neither is code-signed, so SmartScreen will warn ("More info → Run anyway"). **Test on her laptop early.** IT policy (AppLocker or Defender) may block unsigned apps entirely.
+Full details — pipeline steps, output locations, shortcuts, troubleshooting → [`docs/build-windows.md`](docs/build-windows.md).
 
 ## Brand
 
