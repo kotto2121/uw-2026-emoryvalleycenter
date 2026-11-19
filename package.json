@@ -13,27 +13,27 @@
     "dev:electron": "wait-on http://localhost:3000 http://localhost:4100/health && cross-env ELECTRON_START_URL=http://localhost:3000 NODE_ENV=development electron .",
     "build:ui": "next build app",
     "start:api": "node api/server.js",
-    "dist": "npm run build:ui && electron-builder",
-    "dist:win": "npm run build:ui && electron-builder --win",
+    "dist": "npm run build:ui && npm run build:main && electron-builder",
+    "dist:win": "npm run build:ui && npm run build:main && electron-builder --win --x64",
     "postinstall": "electron-builder install-app-deps",
-    "demo:files": "node scripts/generate-demo-files.js"
-  },
-  "dependencies": {
-    "exceljs": "^4.4.0",
-    "express": "^4.21.2",
-    "jszip": "^3.10.2",
-    "sql.js": "^1.12.0"
+    "demo:files": "node scripts/generate-demo-files.js",
+    "build:main": "node scripts/build-main.js"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
     "framer-motion": "^14.14.0",
+    "jszip": "^3.10.2",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.11.0",
+    "sql.js": "^1.12.0",
     "wait-on": "^8.0.2"
   },
   "build": {
@@ -44,15 +44,15 @@
       "buildResources": "build"
     },
     "files": [
-      "electron/**/*",
-      "api/**/*",
-      "db/**/*.js",
+      "dist/**/*",
+      "electron/preload.js",
+      "electron/splash.html",
+      "electron/assets/**/*",
       "app/out/**/*",
-      "node_modules/**/*",
-      "!api/README.md"
+      "package.json"
     ],
     "asarUnpack": [
-      "node_modules/sql.js/dist/sql-wasm.wasm"
+      "dist/sql-wasm.wasm"
     ],
     "win": {
       "target": [
@@ -65,6 +65,10 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "Greenhouse"
+    },
+    "extraMetadata": {
+      "main": "dist/main.js"
     }
-  }
+  },
+  "dependencies": {}
 }

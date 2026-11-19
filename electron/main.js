@@ -17,12 +17,24 @@ const { app, BrowserWindow, shell, session } = require("electron");
 const path = require("path");
 const crypto = require("crypto");
 
+// Project root: works whether this file runs from electron/ (dev) or is
+// bundled into dist/main.js (packaged).
+const ROOT = path.join(__dirname, "..");
+
 const isDev = !app.isPackaged && process.env.NODE_ENV === "development";
 
 // Let the db layer know where to store emoryvalley.db.
 process.env.ELECTRON_USER_DATA = app.getPath("userData");
 
 const BRAND_BG = "#f6f5f0";
+
+// CI self-test: EVC_SMOKE_TEST=<file> launches the real packaged app, exercises
+// the API from inside the window, writes a JSON result to <file>, and exits.
+const SMOKE = process.env.EVC_SMOKE_TEST || null;
+function smokeResult(result, code) {
+  try { require("fs").writeFileSync(SMOKE, JSON.stringify(result, null, 2)); } catch {}
+  app.exit(code);
+}
 const SPLASH_MIN_MS = 2200; // let the logo animation play out
 
 let apiServer = null;
@@ -50,7 +62,7 @@ async function startApi() {
   const { createApp } = require("../api/server.js");
   const db = require("../db");
   await db.getDb(); // open/migrate the database while the splash is showing
-  const expressApp = createApp({ token, staticDir: path.join(__dirname, "..", "app", "out") });
+  const expressApp = createApp({ token, staticDir: path.join(ROOT, "app", "out") });
   await new Promise((resolve) => {
     apiServer = expressApp.listen(0, "127.0.0.1", resolve); // 0 = any free port
   });
@@ -73,7 +85,7 @@ function createSplash() {
     title: "Greenhouse",
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  splash.loadFile(path.join(__dirname, "splash.html"));
+  splash.loadFile(path.join(ROOT, "electron", "splash.html"));
   splash.once("ready-to-show", () => splash.show());
 }
 
@@ -93,9 +105,9 @@ async function createMainWindow(api) {
     ...(isMac
       ? { trafficLightPosition: { x: 16, y: 14 } }
       : { titleBarOverlay: { color: BRAND_BG, symbolColor: "#1d2b26", height: 44 } }),
-    icon: path.join(__dirname, "assets", "icon.png"),
+    icon: path.join(ROOT, "electron", "assets", "icon.png"),
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(ROOT, "electron", "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -118,6 +130,25 @@ async function createMainWindow(api) {
 
   const shown = Date.now();
   mainWindow.once("ready-to-show", async () => {
+    if (SMOKE) {
+      try {
+        const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+          const { apiUrl, token } = window.evc; const H = { "x-evc-token": token };
+          const j = (p, o = {}) => fetch(apiUrl + p, { ...o, headers: H }).then(async (x) => ({ s: x.status, ok: x.ok, b: (x.headers.get("content-type") || "").includes("json") ? await x.json() : (await x.arrayBuffer()).byteLength }));
+          const page = document.title;
+          const demo = await j("/api/demo/load", { method: "POST" });
+          const bh = await j("/api/bh");
+          const xlsx = await j("/api/reports/bh-roster.xlsx?month=" + bh.b.month);
+          const unauth = (await fetch(apiUrl + "/api/meta")).status;
+          return { page, demo: demo.s, events: demo.b.meta && demo.b.meta.events, op: bh.b.current && bh.b.current.op, xlsxBytes: xlsx.b, unauth };
+        })()`);
+        const ok = r.demo === 201 && r.events > 0 && r.op > 0 && r.xlsxBytes > 1000 && r.unauth === 401;
+        smokeResult({ ok, ...r }, ok ? 0 : 1);
+      } catch (err) {
+        smokeResult({ ok: false, error: String(err && err.stack || err) }, 1);
+      }
+      return;
+    }
     const wait = Math.max(0, SPLASH_MIN_MS - (Date.now() - splashStartedAt));
     setTimeout(() => {
       if (splash && !splash.isDestroyed()) {
@@ -146,6 +177,7 @@ app.whenReady().then(async () => {
     await createMainWindow(api);
   } catch (err) {
     console.error("[main] startup failed:", err);
+    if (SMOKE) return smokeResult({ ok: false, error: String(err && err.stack ? err.stack : err) }, 1);
     const { dialog } = require("electron");
     dialog.showErrorBox("Greenhouse couldn't start", String(err && err.stack ? err.stack : err));
     app.quit();

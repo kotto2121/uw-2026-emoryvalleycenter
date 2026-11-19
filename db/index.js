@@ -140,9 +140,12 @@ let SQL = null;
 async function getDb() {
   if (db) return db;
   SQL = await initSqlJs({
-    // require.resolve works both from source and from inside the packaged
-    // asar (the .wasm is listed in asarUnpack in package.json).
-    locateFile: (file) => require.resolve(`sql.js/dist/${file}`),
+    locateFile: (file) => {
+      // Bundled/packaged app: the .wasm sits next to dist/main.js.
+      const beside = path.join(__dirname, file);
+      if (fs.existsSync(beside)) return beside;
+      return require.resolve(`sql.js/dist/${file}`); // running from source
+    },
   });
   const file = dbFilePath();
   db = fs.existsSync(file) ? new SQL.Database(fs.readFileSync(file)) : new SQL.Database();

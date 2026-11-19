@@ -28,13 +28,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build UI (Next.js static export)
-        run: npx next build app
-
-      - name: Package Windows app (unsigned)
-        run: npx electron-builder --win --x64 --publish never
+      - name: Build UI, bundle main process, package Windows app (unsigned)
+        run: npm run dist:win -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Smoke test — launch the packaged .exe on Windows
+        shell: pwsh
+        run: |
+          $result = Join-Path $env:RUNNER_TEMP "smoke.json"
+          $env:EVC_SMOKE_TEST = $result
+          $exe = Get-ChildItem "release\win-unpacked\*.exe" | Where-Object { $_.Name -notmatch "elevate|Uninstall" } | Select-Object -First 1
+          Write-Host "Launching $($exe.FullName)"
+          $p = Start-Process -FilePath $exe.FullName -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "App did not finish the self-test within 120s" }
+          if (-not (Test-Path $result)) { throw "App exited (code $($p.ExitCode)) without writing a self-test result" }
+          Get-Content $result
+          $json = Get-Content $result -Raw | ConvertFrom-Json
+          if (-not $json.ok) { throw "Self-test failed" }
 
       - name: Checksums
         shell: pwsh
