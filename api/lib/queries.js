@@ -207,7 +207,8 @@ function incidentsSummary(filters = {}) {
     `SELECT event_month AS month, COUNT(*) AS events,
             SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable,
             SUM(CASE WHEN injury_level IN ('Minor Injury','Serious Injury') THEN 1 ELSE 0 END) AS injuries,
-            COUNT(DISTINCT person_id) AS people
+            COUNT(DISTINCT person_id) AS people,
+            ${flagSql}
      FROM event_report WHERE ${where.sql} GROUP BY 1 ORDER BY 1`, where.params);
 
   // Multi-select fields: count each option once per event.

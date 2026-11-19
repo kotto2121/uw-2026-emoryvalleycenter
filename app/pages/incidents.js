@@ -5,6 +5,7 @@ import Icon from "../components/Icon";
 import { useMeta } from "../components/Layout";
 import { Button, Card, Empty, Kpi, MonthSelect, PageHeader, PartialMonthNotice, Select, Skeleton, Toggle, useAsync } from "../components/ui";
 import { BarList, TrendBars, SERIES } from "../components/charts";
+import IndicatorMultiples from "../components/IndicatorMultiples";
 import { api, qs } from "../lib/api";
 import { INCLUDE_OPTIONS, SEGMENT_OPTIONS } from "../lib/filters";
 import { dateLabel, fmt, monthLabel, pct, sameName } from "../lib/format";
@@ -110,6 +111,11 @@ export default function Incidents() {
             </Card>
           </div>
 
+          <Card title="Safety indicators" subtitle={`Event records matching each definition · ${range} · trend by month`} delay={0.05}
+            footer={<span><Icon name="info" size={13} style={{ verticalAlign: -2 }} /> Hover a tile for exactly which PHS options count, or a point on its line for that month&rsquo;s count. Follows the filters above.</span>}>
+            <IndicatorMultiples values={t} trend={s.byMonth} showDelta={false} />
+          </Card>
+
           <div className="grid cols-3">
             <Card title="Where events happen" subtitle="Event location" delay={0.05}><BarList rows={s.byLocation} /></Card>
             <Card title="How events became known" subtitle="Witnessed / discovered, and by whom" delay={0.1}>
@@ -138,22 +144,16 @@ export default function Incidents() {
             </Card>
           </div>
 
-          <div className="grid cols-2">
+          <div className="grid cols-3">
             <Card title="Medical events" subtitle={`${fmt(t.with_medical)} events · options recovered from the combined PHS field`} delay={0.05}>
               {s.medical.length ? <BarList rows={s.medical} color={SERIES[2]} total={t.with_medical}
                 formatLabel={(l) => l.replace(/ requiring medical (treatment by a medical professional|intervention)/, "")} />
                 : <p className="muted">None recorded in this export. (Some PHS exports leave this column empty.)</p>}
             </Card>
-            <Card title="Safety indicators" subtitle="Event records matching each definition (see Behavioral Health for trends)" delay={0.1}>
-              <BarList rows={Object.entries(s.flags).map(([k, label]) => ({ label, n: t[k] || 0 })).sort((a, b) => b.n - a.n)} color={SERIES[2]} total={t.events} />
-            </Card>
-          </div>
-
-          <div className="grid cols-2-1">
-            <Card title="Sites with the most events" subtitle="Click a site to filter the dashboard" delay={0.05}>
+            <Card title="Sites with the most events" subtitle="Click a site to filter the dashboard" delay={0.1}>
               <BarList rows={s.topSites} color={SERIES[1]} onSelect={(r) => setSite(r.label)} />
             </Card>
-            <Card title="Data quality" subtitle="What the export did and didn't record" delay={0.1}>
+            <Card title="Data quality" subtitle="What the export did and didn't record" delay={0.15}>
               <div className="barlist" style={{ gap: 12 }}>
                 {[
                   ["Exact duplicate rows", s.dataQuality.duplicates, dups ? "included" : "excluded from counts"],
