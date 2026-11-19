@@ -20,6 +20,8 @@ const { resolveReview } = require("../db/people");
 const { readIncidentWorkbook } = require("./lib/incidents-xlsx");
 const { readDocx, guessRoster, tableEntries } = require("./lib/docx-tables");
 const { importIncidents, importRoster, deleteBatch } = require("./lib/importer");
+const uploads = require("./lib/uploads");
+const { FIELDS, REQUIRED, squash } = require("./lib/incidents-xlsx");
 const { generateDemoFiles } = require("./lib/demo");
 const { bhRosterWorkbook } = require("./lib/reports");
 const q = require("./lib/queries");
@@ -96,6 +98,165 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
     db.backup("pre-import");
     const summary = importIncidents({ rows, filename: filenameOf(req), warnings });
     res.status(201).json({ ...summary, sheet, unmappedHeaders });
+  }));
+
+  // ---- Excel import: analyze -> (review unknown columns) -> commit ----
+  // Single upload: the file is held in memory under an uploadId while the
+  // user reviews unknown headers; nothing is committed until they confirm.
+  const PROGRAM = "phs_incidents";
+
+  const mappingsFor = () =>
+    db.all("SELECT field, alias, required FROM column_mappings WHERE program = ?", [PROGRAM]);
+
+  const knownFieldNames = () => {
+    const seen = new Set();
+    for (const [f] of FIELDS) seen.add(f);
+    for (const m of mappingsFor()) seen.add(m.field);
+    return [...seen];
+  };
+
+  app.post("/api/imports/analyze", raw, h(async (req, res) => {
+    await db.getDb();
+    const mappings = mappingsFor();
+    const result = await readIncidentWorkbook(req.body, { mappings, require: false });
+    const { uploadId } = uploads.hold({ filename: filenameOf(req), buffer: req.body, result });
+    res.json({
+      uploadId,
+      sheet: result.sheet,
+      rowsRead: result.rows.length,
+      warnings: result.warnings,
+      unknownHeaders: result.unknownHeaders,
+      missingRequired: result.missingRequired,
+      knownFields: knownFieldNames(),
+      requiredFields: REQUIRED,
+    });
+  }));
+
+  app.post("/api/imports/:uploadId/commit", h(async (req, res) => {
+    await db.getDb();
+    const held = uploads.takeForCommit(req.params.uploadId);
+    if (!held) return res.status(410).json({ error: "That upload has expired or was already imported. Please drop the file again." });
+
+    // decisions: [{ header, action: 'map'|'new'|'ignore', field?, remember? }]
+    const decisions = Array.isArray(req.body?.decisions) ? req.body.decisions : [];
+    const extraByField = {};   // field -> header(s) accepted as extra columns
+    const remember = [];       // mappings to persist for next time
+
+    for (const d of decisions) {
+      const header = String(d.header || "").trim();
+      if (!header || d.action === "ignore") continue;
+      if (d.action === "new") {
+        const field = String(d.field || "").trim();
+        if (!field) continue;
+        extraByField[field] = extraByField[field] || [];
+        extraByField[field].push(header);
+        if (d.remember) remember.push({ field, alias: header, isNew: true });
+      } else if (d.action === "map" && d.field) {
+        // Header resolved to an existing canonical field: remember so next
+        // month's file with the same header imports without asking.
+        if (d.remember) remember.push({ field: d.field, alias: header });
+      }
+    }
+
+    // Re-parse the held buffer with (mappings + remembered 'map' decisions).
+    // 'new' fields get a synthetic alias so the parser materializes their
+    // values under a header-named key, which we then collect into extra_fields.
+    const mappings = mappingsFor().concat(
+      remember.filter(r => !r.isNew).map(r => ({ field: r.field, alias: r.alias })),
+      remember.filter(r => r.isNew).map(r => ({ field: r.alias, alias: r.alias }))
+    );
+    let result;
+    try {
+      result = await readIncidentWorkbook(held.buffer, { mappings, require: false });
+    } catch (err) {
+      return res.status(422).json({ error: err.message });
+    }
+
+    // Required fields must actually resolve in THIS file — the parser reports
+    // which required columns had no matching header after re-parse.
+    const stillMissing = result.missingRequired || [];
+    if (stillMissing.length) {
+      return res.status(422).json({
+        error: `Can't import yet — these required columns are still unmapped: ${stillMissing.join(", ")}. Map them in the review step and try again.`,
+        missingRequired: stillMissing,
+      });
+    }
+
+    // Attach accepted new fields as extra_fields on each row.
+    const rows = result.rows;
+    const extraHeaders = new Map(); // header -> field
+    for (const [field, headers] of Object.entries(extraByField)) {
+      for (const hd of headers) extraHeaders.set(hd, field);
+    }
+    if (extraHeaders.size) {
+      for (const row of rows) {
+        const extras = {};
+        for (const [header, field] of extraHeaders) {
+          const v = row[header];
+          if (v !== undefined) extras[field] = v;
+        }
+        if (Object.keys(extras).length) row.extra_fields = extras;
+      }
+    }
+
+    db.backup("pre-import");
+    const summary = importIncidents({ rows, filename: held.filename, warnings: result.warnings });
+
+    // Persist remembered mappings AFTER a successful commit.
+    if (remember.length) {
+      db.tx(() => {
+        for (const r of remember) {
+          db.run(
+            "INSERT OR IGNORE INTO column_mappings (program, field, alias, required) VALUES (?, ?, ?, 0)",
+            [PROGRAM, r.field, squash(r.alias)]
+          );
+        }
+      });
+    }
+
+    res.status(201).json({
+      ...summary,
+      sheet: result.sheet,
+      unmappedHeaders: result.unmappedHeaders,
+      appliedDecisions: decisions.length,
+      rememberedMappings: remember.length,
+    });
+  }));
+
+  // ---- per-program column mapping CRUD ----
+  app.get("/api/programs/:key/columns", h(async (req, res) => {
+    await db.getDb();
+    res.json({
+      program: req.params.key,
+      columns: db.all(
+        "SELECT field, alias, required FROM column_mappings WHERE program = ? ORDER BY field, alias",
+        [req.params.key]
+      ),
+    });
+  }));
+
+  app.post("/api/programs/:key/columns", h(async (req, res) => {
+    await db.getDb();
+    const { field, alias, required } = req.body || {};
+    if (!field || !alias) return res.status(400).json({ error: "field and alias are required" });
+    db.tx(() => {
+      db.run(
+        "INSERT OR REPLACE INTO column_mappings (program, field, alias, required) VALUES (?, ?, ?, ?)",
+        [req.params.key, String(field).trim(), squash(String(alias).trim()), required ? 1 : 0]
+      );
+    });
+    res.status(201).json({ ok: true });
+  }));
+
+  app.delete("/api/programs/:key/columns", h(async (req, res) => {
+    await db.getDb();
+    const { field, alias } = req.query;
+    if (!alias) return res.status(400).json({ error: "alias query param is required" });
+    const n = db.tx(() => db.run(
+      "DELETE FROM column_mappings WHERE program = ? AND alias = ?" + (field ? " AND field = ?" : ""),
+      field ? [req.params.key, squash(alias), field] : [req.params.key, squash(alias)]
+    )).changes;
+    res.json({ deleted: n });
   }));
 
   // Word roster: step 1 = preview (we guess, the user confirms), step 2 = commit.

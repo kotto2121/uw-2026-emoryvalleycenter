@@ -8,7 +8,6 @@
  * MM/DD/YYYY text (how PHS exports them), real Excel dates, or ISO strings.
  */
 const ExcelJS = require("exceljs");
-const { normalizeValue } = require("../../db/normalize");
 
 const FIELDS = [
   ["event_date", ["Date Of Event", "event_date", "Event Date"]],
@@ -60,11 +59,11 @@ function cellText(v) {
 }
 
 function clean(v) {
-  // Normalize via the shared layer (db/normalize.js) BEFORE hashing/import so
-  // sentinel variants (NA / n/a / N/A / None / '-' ...) collapse to null and
-  // re-import dedupe hashes normalized values. Runs at cell-clean time —
-  // see db/normalize.js header for the hash-position rationale.
-  return normalizeValue(cellText(v));
+  v = cellText(v);
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v;
+  const s = String(v).trim();
+  return s === "" ? null : s;
 }
 
 const pad = (n) => String(n).padStart(2, "0");
