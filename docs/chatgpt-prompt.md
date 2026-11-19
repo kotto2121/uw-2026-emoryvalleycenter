@@ -114,7 +114,7 @@ Before giving the link, re-open the generated file with python-docx and confirm 
 
 ## Prompt C: PHS event report option lists (labels only)
 
-> Attach: the PHS "New Reportable Event Report" Excel export (same kind of file profiled in `deidentified_event_data_schema.md`).
+> Attach: the PHS "New Reportable Event Report" Excel export.
 
 ```text
 This Excel export contains protected health information. I need ONLY the form's option labels (the fixed choices from the PHS form), never anything about a person.
