@@ -3,21 +3,10 @@ import { useState } from "react";
 import Icon from "../components/Icon";
 import { useMeta } from "../components/Layout";
 import { Button, Callout, Card, Empty, Kpi, MonthSelect, PageHeader, PartialMonthNotice, Skeleton, useAsync } from "../components/ui";
-import { MUTED, SegmentBar, Spark, TrendLines, SERIES } from "../components/charts";
+import IndicatorMultiples from "../components/IndicatorMultiples";
+import { MUTED, SegmentBar, TrendLines, SERIES } from "../components/charts";
 import { api, qs } from "../lib/api";
 import { fmt, monthLabel } from "../lib/format";
-
-// [flag, label, is a Data Metric Goal, how it's counted] — full definitions in docs/metrics.md
-const INDICATORS = [
-  ["f_hospitalization", "Hospitalizations", true, "“Psychiatric Admission…” (behavioral) or a “Hospitalization – Medical/Psychiatric” intervention. ER visits are counted separately."],
-  ["f_police", "Police involvement", true, "“Engagement with Law Enforcement”, the “Police” intervention, or “Incarceration”."],
-  ["f_crisis", "Crisis events", true, "Any “Behavioral Crisis requiring …” option, or Mobile Crisis / MH Mobile Crisis Team involvement."],
-  ["f_property_damage", "Property damage", true, "“Property Destruction exceeding $100”, plus narrative mentions of property damage."],
-  ["f_er", "ER visits", false, "“Emergency Room Visit” or “Hospital Emergency Room”."],
-  ["f_911", "911 calls", false, "“911 Call” intervention."],
-  ["f_self_injury", "Self-injury / suicide attempt", false, "“Self-Injurious Behavior” or “Suicide Attempt” only."],
-  ["f_restraint", "Restrictive interventions", false, "Manual/mechanical restraint, protective equipment, or emergency psychotropic medication."],
-];
 
 export default function BehavioralHealth() {
   const router = useRouter();
@@ -90,32 +79,12 @@ export default function BehavioralHealth() {
 
       <Card title="Crisis & safety indicators" subtitle={`Event records involving BH clients in ${monthLabel(data.month)} · six-month trend · change vs. previous month`} delay={0.2}
         footer={<span><Icon name="info" size={13} style={{ verticalAlign: -2 }} /> Counted from PHS&rsquo;s real option labels (hover a tile to see exactly how). Property damage has no PHS option, so it&rsquo;s a minimum taken from narratives. Confirm definitions with Kristen before reporting externally.</span>}>
-        <div className="multiples">
-          {INDICATORS.map(([key, label, goal, how]) => {
-            const diff = data.previous ? c[key] - p[key] : null;
-            return (
-              <div className="multiple" key={key} title={how}>
-                <div className="multiple-head">
-                  <span>{label}{goal && <span className="tag brand" style={{ marginLeft: 6, height: 18, fontSize: 10.5 }}>Goal</span>}</span>
-                  <strong>{fmt(c[key])}</strong>
-                </div>
-                <div style={{ height: 22 }}>
-                  {diff !== null && (
-                    <span className={`delta ${diff === 0 ? "neutral" : diff > 0 ? "bad" : "good"}`}>
-                      {diff !== 0 && <Icon name={diff > 0 ? "arrowUp" : "arrowDown"} size={11} stroke={2.25} />}
-                      {diff === 0 ? "No change" : fmt(Math.abs(diff))}
-                    </span>
-                  )}
-                </div>
-                <Spark data={data.trend.slice(-6)} dataKey={key} color={SERIES[2]} />
-              </div>
-            );
-          })}
+        <IndicatorMultiples values={c} previous={data.previous} trend={data.trend.slice(-6)}>
           <div className="multiple" style={{ borderStyle: "dashed", display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
             <span style={{ fontSize: 12.5, color: "var(--ink-2)", fontWeight: 550 }}>People with BCBA services</span>
             <span className="muted" style={{ fontSize: 12 }}>Needs a BCBA caseload source — not in the current files.</span>
           </div>
-        </div>
+        </IndicatorMultiples>
       </Card>
     </>
   );

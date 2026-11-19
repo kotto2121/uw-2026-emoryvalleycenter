@@ -70,7 +70,7 @@ The queue shrinks over time. The first month needs the most review; later months
 
 - **Overview:** headline numbers for the latest *complete* month, with trends.
 - **Behavioral Health:** people marked Behavioral — how many had an incident, their incident records, and the crisis and safety indicators, all counted for BH clients only.
-- **Incidents & Safety:** everything in the PHS export, with filters by month range and site.
+- **Incidents & Safety:** everything in the PHS export, with filters by month range and site, and a monthly trend for each safety indicator.
 
 Hover over any chart for exact values. Click a site bar to filter by that site. Click a row in **Event records** to see the full record.
 
