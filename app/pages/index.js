@@ -1,129 +1,123 @@
-import Head from "next/head";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import Icon from "../components/Icon";
+import Logo from "../components/Logo";
+import { useMeta } from "../components/Layout";
+import LoadDemoButton from "../components/LoadDemoButton";
+import { Button, Card, Empty, Kpi, Skeleton, useAsync } from "../components/ui";
+import { TrendBars, TrendLines, SERIES } from "../components/charts";
+import { api } from "../lib/api";
+import { fmt, greeting, monthLabel, relativeTime } from "../lib/format";
+import { PROGRAMS } from "../lib/programs";
 
-// API base: injected by Electron preload (window.apiUrl) in the packaged app,
-// defaults to localhost:4100 for plain browser dev.
-function getApiBase() {
-  if (typeof window !== "undefined" && window.apiUrl) return window.apiUrl;
-  return "http://localhost:4100";
+function Welcome() {
+  const router = useRouter();
+  return (
+    <>
+      <div className="hero">
+        <div style={{ position: "relative" }}>
+          <div className="eyebrow">Welcome to Greenhouse</div>
+          <h1>One place for Emory Valley Center&rsquo;s numbers.</h1>
+          <p>Import the monthly PHS event report and the behavioral health roster, confirm a few name matches, and your dashboards and reports build themselves. Everything stays on this computer.</p>
+        </div>
+        <div className="hero-art"><Logo size={260} /></div>
+      </div>
+      <Card>
+        <Empty icon="sprout" title="No data yet" actions={<>
+          <Button variant="primary" icon="upload" onClick={() => router.push("/import")}>Import files</Button>
+          <LoadDemoButton variant="secondary" label="Explore with demo data" />
+        </>}>
+          Start with real files from PHS, or load six months of realistic, fictitious demo data to explore every screen.
+        </Empty>
+      </Card>
+    </>
+  );
 }
 
-export default function Home() {
-  const [hello, setHello] = useState(null);
-  const [greetings, setGreetings] = useState([]);
-  const [error, setError] = useState(null);
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
+export default function Overview() {
+  const router = useRouter();
+  const { meta } = useMeta();
+  const { data, loading } = useAsync(() => api.get("/api/overview"), [meta?.last_import, meta?.pending_reviews]);
 
-  async function load() {
-    try {
-      setError(null);
-      const base = getApiBase();
-      const [h, g] = await Promise.all([
-        fetch(`${base}/api/hello`).then((r) => r.json()),
-        fetch(`${base}/api/greetings`).then((r) => r.json()),
-      ]);
-      setHello(h);
-      setGreetings(g.greetings || []);
-    } catch (err) {
-      setError(String(err));
-    }
-  }
+  if (!meta || loading && !data) return <><Skeleton h={150} /><div className="grid cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={120} />)}</div></>;
+  if (!meta.hasData) return <Welcome />;
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function addGreeting(e) {
-    e.preventDefault();
-    if (!draft.trim()) return;
-    try {
-      setSaving(true);
-      const base = getApiBase();
-      await fetch(`${base}/api/greetings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: draft.trim() }),
-      });
-      setDraft("");
-      await load();
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setSaving(false);
-    }
-  }
+  const trend = data?.trend || [];
+  const cur = trend[trend.length - 1] || {};
+  const prev = trend[trend.length - 2] || {};
+  const live = PROGRAMS.filter((p) => p.status === "live");
+  const planned = PROGRAMS.filter((p) => p.status !== "live");
+  const sourceNames = { incident_xlsx: ["PHS event report", "file"], bh_docx: ["Behavioral health roster", "file"] };
 
   return (
     <>
-      <Head>
-        <title>Greenhouse by Emory Valley Center</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </Head>
-      <main>
-        <p className="brand">Greenhouse by Emory Valley Center</p>
-        <h1>{hello ? hello.message : "Loading…"}</h1>
-        <p className="sub">
-          Electron + Next.js + Express + SQLite — hello world, end to end.
-        </p>
+      <div className="hero">
+        <div style={{ position: "relative" }}>
+          <div className="eyebrow">{greeting()}</div>
+          <h1>Emory Valley Center at a glance</h1>
+          <p>Data through <strong style={{ color: "#fff" }}>{monthLabel(data?.latest)}</strong>, from {fmt(meta.imports)} imported files. {meta.pending_reviews > 0 && <>There {meta.pending_reviews === 1 ? "is" : "are"} <Link href="/review" style={{ color: "#c8e6a0", textDecoration: "underline" }}>{meta.pending_reviews} possible duplicate {meta.pending_reviews === 1 ? "person" : "people"}</Link> to confirm.</>}</p>
+        </div>
+        <div className="hero-stats">
+          <div className="hero-stat"><strong>{fmt(meta.people)}</strong><span>people in registry</span></div>
+          <div className="hero-stat"><strong>{fmt(meta.months.all.length)}</strong><span>months of history</span></div>
+          <div className="hero-stat"><strong>{fmt(meta.events)}</strong><span>event records</span></div>
+        </div>
+        <div className="hero-art"><Logo size={260} /></div>
+      </div>
 
-        {error && <p className="err">API error: {error}</p>}
+      <div className="grid cols-4">
+        <Kpi label="People in records this month" icon="users" value={cur.people} previous={prev.people} delay={0} accent />
+        <Kpi label="Behavioral health clients" icon="brain" value={cur.bh} previous={prev.bh} goodDirection="up" delay={0.05} onClick={() => router.push("/behavioral-health")} />
+        <Kpi label="Incidents this month" icon="shield" value={cur.events} previous={prev.events} goodDirection="down" delay={0.1} onClick={() => router.push("/incidents")} />
+        <Kpi label="Reportable incidents" icon="alert" value={cur.reportable} previous={prev.reportable} goodDirection="down" delay={0.15} onClick={() => router.push("/incidents")} />
+      </div>
 
-        <section>
-          <h2>Greetings (from SQLite)</h2>
-          <ul>
-            {greetings.map((g) => (
-              <li key={g.id}>
-                <strong>{g.message}</strong>{" "}
-                <span className="date">{g.createdAt}</span>
-              </li>
+      <div className="grid cols-2">
+        <Card title="People in records" subtitle="Distinct people appearing in any imported source, by month" delay={0.1}>
+          <TrendLines data={trend} series={[{ key: "people", label: "People", color: SERIES[0] }]} area />
+        </Card>
+        <Card title="Incidents" subtitle="Reportable vs. non-reportable events by month (duplicates excluded)" delay={0.15}>
+          <TrendBars data={trend.map((t) => ({ ...t, nonreportable: t.events - t.reportable }))} stacked
+            series={[{ key: "nonreportable", label: "Non-reportable", color: SERIES[1] }, { key: "reportable", label: "Reportable", color: SERIES[2] }]} />
+        </Card>
+      </div>
+
+      <div className="grid cols-2-1">
+        <Card title="Programs" subtitle={`${live.length} live dashboards · ${planned.length} on the roadmap`} delay={0.2}>
+          <div className="programs">
+            {[...live, ...planned].map((p) => (
+              <Link key={p.slug} href={p.href || `/programs?p=${p.slug}`} className={`program-tile ${p.status}`}>
+                <div className="pt-head">
+                  <span className="pt-icon"><Icon name={p.icon} size={17} /></span>
+                  {p.status === "live" ? <span className="tag good">Live</span> : <span className="tag">Planned</span>}
+                </div>
+                <strong>{p.name}</strong>
+                <small>{p.metrics.length} metrics{p.restricted ? " · restricted" : ""}</small>
+              </Link>
             ))}
-          </ul>
-
-          <form onSubmit={addGreeting}>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Add a greeting…"
-            />
-            <button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </form>
-        </section>
-      </main>
-
-      <style jsx global>{`
-        * { box-sizing: border-box; }
-        body {
-          margin: 0;
-          font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-          background: #0f172a;
-          color: #e2e8f0;
-        }
-        main { max-width: 720px; margin: 0 auto; padding: 48px 24px; }
-        .brand { color: #38bdf8; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; font-size: 13px; margin: 0 0 8px; }
-        h1 { font-size: 40px; margin-bottom: 4px; }
-        .sub { color: #94a3b8; margin-top: 0; }
-        .err { color: #f87171; }
-        section { margin-top: 32px; }
-        ul { list-style: none; padding: 0; }
-        li {
-          padding: 10px 12px; border-bottom: 1px solid #1e293b;
-          display: flex; justify-content: space-between;
-        }
-        .date { color: #64748b; font-size: 13px; }
-        form { display: flex; gap: 8px; margin-top: 16px; }
-        input {
-          flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155;
-          background: #1e293b; color: #e2e8f0;
-        }
-        button {
-          padding: 10px 16px; border-radius: 8px; border: none;
-          background: #38bdf8; color: #0f172a; font-weight: 600; cursor: pointer;
-        }
-        button:disabled { opacity: 0.6; cursor: default; }
-      `}</style>
+          </div>
+        </Card>
+        <Card title="Data sources" subtitle="What feeds these dashboards" delay={0.25}
+          actions={<Button size="sm" icon="upload" onClick={() => router.push("/import")}>Import</Button>}>
+          {(data?.sources || []).map((s) => (
+            <div className="source-row" key={s.kind}>
+              <span className="source-icon"><Icon name={s.kind === "bh_docx" ? "file" : "database"} size={17} /></span>
+              <div>
+                <strong>{(sourceNames[s.kind] || [s.kind])[0]}</strong>
+                <span>{fmt(s.imports)} imports · {fmt(s.rows)} rows · last {relativeTime(s.last_import)}</span>
+              </div>
+              <span className="tag good"><Icon name="check" size={12} /> Current</span>
+            </div>
+          ))}
+          {["Paylocity (HR & pay)", "PHS demographics", "Program spreadsheets"].map((n) => (
+            <div className="source-row" key={n}>
+              <span className="source-icon" style={{ background: "#f0f1ee", color: "#9aa59f" }}><Icon name="database" size={17} /></span>
+              <div><strong>{n}</strong><span>Not connected yet</span></div>
+              <span className="tag">Planned</span>
+            </div>
+          ))}
+        </Card>
+      </div>
     </>
   );
 }

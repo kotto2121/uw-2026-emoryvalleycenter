@@ -3,86 +3,237 @@
  *
  * sql.js runs SQLite compiled to WebAssembly, so this works identically on
  * macOS, Windows, and Linux with zero build tooling. The database is a real
- * SQLite file on disk; we load it into memory, operate, and persist it back
- * after writes.
+ * SQLite file on disk: we load it into memory, operate, and persist it back
+ * after writes (atomically: write a temp file, then rename over the original).
  *
  * Location of the db file:
- *   - Packaged app: %APPDATA%/EmoryValley/emoryvalley.db (Windows) or
- *     ~/Library/Application Support/EmoryValley/... (macOS) via Electron's
- *     userData path when ELECTRON_USER_DATA is set by the main process.
- *   - Standalone dev: ./db/emoryvalley.db
+ *   - EVC_DB_PATH env var, if set (tests / scripts).
+ *   - Packaged app: Electron's userData dir (ELECTRON_USER_DATA, set by
+ *     electron/main.js) — on Windows: %APPDATA%\Greenhouse by Emory Valley Center\
+ *   - Standalone dev: ./db/emoryvalley.db (git-ignored).
+ *
+ * Schema overview (see SCHEMA below):
+ *   import_batch     one row per imported file (incident xlsx, BH docx, demo)
+ *   person           the app-owned person registry (stable internal id)
+ *   person_alias     every raw name string ever seen -> person
+ *   person_distinct  pairs a human said are NOT the same person
+ *   match_review     "are these the same person?" questions for the Review Queue
+ *   event_report     PHS "Reportable Event Report" rows (one column per source field)
+ *   bh_enrollment    behavioral-health roster rows (OP / PSR) by report month
  */
 const fs = require("fs");
 const path = require("path");
 const initSqlJs = require("sql.js");
 
 function dbFilePath() {
-  if (process.env.EMORYVALLEY_DB_PATH) return process.env.EMORYVALLEY_DB_PATH;
+  if (process.env.EVC_DB_PATH) return process.env.EVC_DB_PATH;
   if (process.env.ELECTRON_USER_DATA)
     return path.join(process.env.ELECTRON_USER_DATA, "emoryvalley.db");
   return path.join(__dirname, "emoryvalley.db");
 }
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS import_batch (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind          TEXT NOT NULL,             -- 'incident_xlsx' | 'bh_docx'
+  filename      TEXT,
+  report_month  TEXT,                      -- YYYY-MM (bh_docx)
+  imported_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  rows_read     INTEGER NOT NULL DEFAULT 0,
+  rows_inserted INTEGER NOT NULL DEFAULT 0,
+  rows_skipped  INTEGER NOT NULL DEFAULT 0, -- already imported earlier
+  is_demo       INTEGER NOT NULL DEFAULT 0,
+  summary_json  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS person (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  display_name  TEXT NOT NULL,
+  first_name    TEXT,
+  last_name     TEXT,
+  is_demo       INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS person_alias (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id     INTEGER NOT NULL REFERENCES person(id),
+  raw_name      TEXT NOT NULL,
+  raw_key       TEXT NOT NULL UNIQUE,      -- lower-cased, whitespace-collapsed raw string
+  norm_key      TEXT NOT NULL,             -- 'last|first' after normalization
+  source        TEXT,
+  how           TEXT NOT NULL,             -- 'new' | 'exact' | 'normalized' | 'merged'
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS ix_alias_norm ON person_alias(norm_key);
+CREATE INDEX IF NOT EXISTS ix_alias_person ON person_alias(person_id);
+
+CREATE TABLE IF NOT EXISTS person_distinct (
+  a INTEGER NOT NULL, b INTEGER NOT NULL,  -- a < b
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (a, b)
+);
+
+CREATE TABLE IF NOT EXISTS match_review (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id           INTEGER NOT NULL,   -- the newer record
+  candidate_person_id INTEGER NOT NULL,   -- the existing record it may duplicate
+  score               REAL NOT NULL,
+  reason              TEXT,
+  status              TEXT NOT NULL DEFAULT 'pending', -- pending | merged | distinct
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  resolved_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_review_status ON match_review(status);
+
+CREATE TABLE IF NOT EXISTS event_report (
+  id                              INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch_id                        INTEGER NOT NULL REFERENCES import_batch(id),
+  row_hash                        TEXT NOT NULL UNIQUE,  -- content hash + occurrence #
+  is_exact_duplicate              INTEGER NOT NULL DEFAULT 0, -- 2nd+ identical row in its file
+  person_id                       INTEGER REFERENCES person(id),
+  event_date                      TEXT,   -- YYYY-MM-DD
+  event_month                     TEXT,   -- YYYY-MM
+  member_full_name                TEXT,
+  tier_1_events                   TEXT,
+  tier_2_events                   TEXT,
+  behavioral_psychiatric_events   TEXT,
+  medical_events                  TEXT,
+  other_event_types               TEXT,
+  reportability_status            TEXT,
+  incident_observation_and_source TEXT,
+  event_location                  TEXT,
+  event_interventions             TEXT,
+  site_home                       TEXT,
+  injury_description              TEXT,
+  injury_level                    TEXT,
+  -- derived flags (see db/classify.js); recomputed on import
+  is_reportable       INTEGER,
+  f_911               INTEGER NOT NULL DEFAULT 0,
+  f_emt               INTEGER NOT NULL DEFAULT 0,
+  f_er                INTEGER NOT NULL DEFAULT 0,
+  f_hospitalization   INTEGER NOT NULL DEFAULT 0,
+  f_police            INTEGER NOT NULL DEFAULT 0,
+  f_crisis            INTEGER NOT NULL DEFAULT 0,
+  f_property_damage   INTEGER NOT NULL DEFAULT 0,
+  f_self_injury       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_event_month ON event_report(event_month);
+CREATE INDEX IF NOT EXISTS ix_event_person ON event_report(person_id);
+
+CREATE TABLE IF NOT EXISTS bh_enrollment (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch_id      INTEGER NOT NULL REFERENCES import_batch(id),
+  person_id     INTEGER REFERENCES person(id),
+  raw_name      TEXT NOT NULL,
+  service       TEXT NOT NULL,            -- 'OP' | 'PSR'
+  report_month  TEXT NOT NULL,            -- YYYY-MM
+  extra_json    TEXT,                     -- the other columns of the source row
+  UNIQUE (raw_name, service, report_month)
+);
+CREATE INDEX IF NOT EXISTS ix_bh_month ON bh_enrollment(report_month);
+`;
 
 let db = null;
 let SQL = null;
 
 async function getDb() {
   if (db) return db;
-
   SQL = await initSqlJs({
-    locateFile: (file) =>
-      path.join(__dirname, "..", "node_modules", "sql.js", "dist", file),
+    // require.resolve works both from source and from inside the packaged
+    // asar (the .wasm is listed in asarUnpack in package.json).
+    locateFile: (file) => require.resolve(`sql.js/dist/${file}`),
   });
-
   const file = dbFilePath();
-  if (fs.existsSync(file)) {
-    db = new SQL.Database(fs.readFileSync(file));
-  } else {
-    db = new SQL.Database();
-  }
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS greetings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      message TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-
-  // Seed the hello-world row on first run.
-  const count = db.exec("SELECT COUNT(*) AS n FROM greetings")[0].values[0][0];
-  if (count === 0) {
-    db.run("INSERT INTO greetings (message) VALUES (?)", ["Hello World"]);
-    persist();
-  }
-
+  db = fs.existsSync(file) ? new SQL.Database(fs.readFileSync(file)) : new SQL.Database();
+  db.run("PRAGMA foreign_keys = ON;");
+  db.run(SCHEMA);
   return db;
 }
 
-/** Write the in-memory database back to its SQLite file on disk. */
+/**
+ * Write the in-memory database back to disk atomically: write a temp file,
+ * then rename it over the real one, so a crash mid-write can't corrupt it.
+ */
 function persist() {
+  if (!db) return;
   const file = dbFilePath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, Buffer.from(db.export()));
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, Buffer.from(db.export()));
+  fs.renameSync(tmp, file);
 }
 
-/** GET /api/hello — latest greeting from SQLite. */
-async function latestGreeting() {
-  const d = await getDb();
-  const rows = d.exec("SELECT message, created_at FROM greetings ORDER BY id DESC LIMIT 1");
-  if (!rows.length) return null;
-  const [message, created_at] = rows[0].values[0];
-  return { message, createdAt: created_at };
+/** Copy the current db file to backups/emoryvalley-<stamp>.db (keeps the last 10). */
+function backup(label = "auto") {
+  const file = dbFilePath();
+  if (!fs.existsSync(file)) return null;
+  const dir = path.join(path.dirname(file), "backups");
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dest = path.join(dir, `emoryvalley-${stamp}-${label}.db`);
+  fs.copyFileSync(file, dest);
+  const old = fs.readdirSync(dir).filter((f) => f.endsWith(".db")).sort();
+  while (old.length > 10) fs.unlinkSync(path.join(dir, old.shift()));
+  return dest;
 }
 
-/** POST /api/greetings — insert a greeting and persist. */
-async function addGreeting(message) {
-  const d = await getDb();
-  d.run("INSERT INTO greetings (message) VALUES (?)", [message]);
-  persist();
-  const rows = d.exec("SELECT last_insert_rowid()");
-  const id = rows[0].values[0][0];
-  return { id, message };
+// ---- tiny query helpers (sql.js has a low-level API) -----------------------
+
+function all(sql, params = []) {
+  const stmt = db.prepare(sql);
+  try {
+    stmt.bind(params);
+    const out = [];
+    while (stmt.step()) out.push(stmt.getAsObject());
+    return out;
+  } finally {
+    stmt.free();
+  }
 }
 
-module.exports = { getDb, persist, latestGreeting, addGreeting, dbFilePath };
+function get(sql, params = []) {
+  return all(sql, params)[0] || null;
+}
+
+function run(sql, params = []) {
+  db.run(sql, params);
+  return {
+    changes: db.getRowsModified(),
+    lastId: db.exec("SELECT last_insert_rowid()")[0].values[0][0],
+  };
+}
+
+/** Run fn inside a transaction; persist to disk on success. */
+function tx(fn) {
+  db.run("BEGIN");
+  try {
+    const result = fn();
+    db.run("COMMIT");
+    persist();
+    return result;
+  } catch (err) {
+    db.run("ROLLBACK");
+    throw err;
+  }
+}
+
+/** Remove every row from every table (used by Settings → Clear all data). */
+function clearAll() {
+  tx(() => {
+    for (const t of [
+      "match_review",
+      "person_distinct",
+      "event_report",
+      "bh_enrollment",
+      "person_alias",
+      "person",
+      "import_batch",
+    ]) {
+      db.run(`DELETE FROM ${t}`);
+    }
+    db.run("DELETE FROM sqlite_sequence");
+  });
+}
+
+module.exports = { getDb, persist, backup, dbFilePath, all, get, run, tx, clearAll };

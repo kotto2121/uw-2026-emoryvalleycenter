@@ -3,7 +3,7 @@
   "productName": "Greenhouse by Emory Valley Center",
   "version": "0.1.0",
   "author": "Emory Valley Center",
-  "description": "Hello-world Electron app: Next.js front end, Express API, SQLite (sql.js) database.",
+  "description": "Greenhouse \u2014 local-first dashboard for Emory Valley Center (Electron + Next.js + Express + SQLite/sql.js).",
   "main": "electron/main.js",
   "private": true,
   "scripts": {
@@ -12,13 +12,16 @@
     "dev:ui": "next dev app -p 3000",
     "dev:electron": "wait-on http://localhost:3000 http://localhost:4100/health && cross-env ELECTRON_START_URL=http://localhost:3000 NODE_ENV=development electron .",
     "build:ui": "next build app",
-    "start:api": "NODE_ENV=production node api/server.js",
+    "start:api": "node api/server.js",
     "dist": "npm run build:ui && electron-builder",
     "dist:win": "npm run build:ui && electron-builder --win",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "demo:files": "node scripts/generate-demo-files.js"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
+    "jszip": "^3.10.2",
     "sql.js": "^1.12.0"
   },
   "devDependencies": {
@@ -26,21 +29,24 @@
     "cross-env": "^7.0.3",
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
+    "framer-motion": "^14.14.0",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^3.11.0",
     "wait-on": "^8.0.2"
   },
   "build": {
     "appId": "com.emoryvalley.app",
     "productName": "Greenhouse by Emory Valley Center",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "electron/**/*",
       "api/**/*",
-      "db/**/*",
+      "db/**/*.js",
       "app/out/**/*",
       "node_modules/**/*",
       "!api/README.md"
@@ -52,11 +58,13 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Greenhouse"
     }
   }
 }
