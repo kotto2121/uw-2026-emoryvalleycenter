@@ -11,6 +11,7 @@ const crypto = require("crypto");
 const db = require("../../db");
 const { createResolver } = require("../../db/people");
 const { computeFlags } = require("../../db/classify");
+const { normalizeValue } = require("../../db/normalize");
 const { FIELDS } = require("./incidents-xlsx");
 
 const FIELD_NAMES = FIELDS.map(([f]) => f);
@@ -101,13 +102,21 @@ function importRoster({ entries, month, filename, isDemo = false }) {
     let skipped = 0;
     const byService = { OP: 0, PSR: 0 };
     for (const e of entries) {
-      const name = String(e.name || "").trim();
+      // Shared normalization layer (db/normalize.js): sentinel spellings
+      // ('n/a', '-', 'none'...) in roster cells collapse to null and get
+      // skipped, same rule set as the incident xlsx path.
+      const name = normalizeValue(e.name);
+      const extra = e.extra
+        ? Object.fromEntries(
+            Object.entries(e.extra).map(([k, v]) => [k, typeof v === "string" ? normalizeValue(v) : v])
+          )
+        : {};
       if (!name || !["OP", "PSR"].includes(e.service)) continue;
       const personId = resolver.resolve(name);
       const r = db.run(
         `INSERT OR IGNORE INTO bh_enrollment (batch_id, person_id, raw_name, service, report_month, extra_json)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [batchId, personId, name, e.service, month, JSON.stringify(e.extra || {})]
+        [batchId, personId, name, e.service, month, JSON.stringify(extra)]
       );
       if (r.changes) {
         inserted++;
