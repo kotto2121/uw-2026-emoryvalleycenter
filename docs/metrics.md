@@ -81,15 +81,9 @@ Not reproduced: the manual workbook's "Type" tab, which depends on an "Incident 
 
 Behavioral is a **person-level** fact: the Behavioral box on a person's page is the only source of truth for every BH number (Behavioral Health dashboard, Behavioral Metrics, Overview). It has no month history, so a past month shows today's boxes. OP / PSR service is not reported — the program reports BH as one group.
 
-The Word roster is optional. Importing one ticks Behavioral for everyone on it whose box was never set by hand; it never unticks anyone. Someone who leaves BH stays counted until their box is unticked.
+The Word roster is optional. Importing one ticks Behavioral for everyone on it whose box was never set by hand; it never unticks anyone. Someone who leaves BH stays counted until their box is unticked. Everything in the app works from the PHS export plus the Behavioral boxes; the OP and PSR monthly reports were dropped from the app.
 
-| Works with the PHS export + Behavioral boxes | Needs the roster |
-|---|---|
-| Behavioral Health dashboard (all of it) | OP and PSR monthly reports |
-| Behavioral Metrics, Incidents & Safety, Overview | |
-| Incident report workbook (all tabs) | |
-
-The Crisis & safety indicators on the Behavioral Health page count **everyone** in the export, not only BH clients; Behavioral Metrics has the Behavioral / Non-Behavioral split.
+On the Behavioral Health page, every number — including the Crisis & safety indicators — counts **BH clients only**. Behavioral Metrics has the All / Behavioral / Non-Behavioral split.
 
 ## Data Metric Goals coverage
 
