@@ -114,21 +114,22 @@ function bhPeopleCount() {
 }
 
 function bhMonth(month) {
-  const flagSql = Object.keys(FLAGS).map((f) => `SUM(${f}) AS ${f}`).join(", ");
-  const ev = db.get(
-    `SELECT COUNT(*) AS events, ${flagSql},
-            SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
+  // Everyone's totals, only for the BH-vs-everyone-else share.
+  const all = db.get(
+    `SELECT COUNT(*) AS events, SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
      FROM event_report WHERE event_month = ? AND is_exact_duplicate = 0 AND ${NOT_TEST}`, [month]);
+  // BH clients' events: the KPIs and the crisis & safety indicators (FLAGS).
+  const flagSql = Object.keys(FLAGS).map((f) => `SUM(${f}) AS ${f}`).join(", ");
   const bh = db.get(
-    `SELECT COUNT(*) AS events, COUNT(DISTINCT person_id) AS people,
+    `SELECT COUNT(*) AS events, COUNT(DISTINCT person_id) AS people, ${flagSql},
             SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable
      FROM event_report
      WHERE event_month = ? AND is_exact_duplicate = 0 AND ${IS_BH} AND ${NOT_TEST}`, [month]);
   const out = {
-    month, events: ev.events, reportable: ev.reportable || 0,
+    month, events: all.events, reportable: all.reportable || 0,
     bhClientEvents: bh.events, bhClientsWithEvents: bh.people, bhReportable: bh.reportable || 0,
   };
-  for (const f of Object.keys(FLAGS)) out[f] = ev[f] || 0;
+  for (const f of Object.keys(FLAGS)) out[f] = bh[f] || 0;
   return out;
 }
 

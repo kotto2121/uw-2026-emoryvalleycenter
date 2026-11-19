@@ -47,10 +47,7 @@ export default function BehavioralHealth() {
         eyebrow="Program dashboard"
         title="Behavioral Health"
         subtitle={`Incidents involving people marked Behavioral in ${monthLabel(data.month)}, with crisis indicators from the PHS event report.`}
-        actions={<>
-          <MonthSelect months={data.months} value={data.month} onChange={setMonth} />
-          <Button icon="file" onClick={() => router.push(`/reports?month=${data.month}`)}>OP & PSR reports</Button>
-        </>}
+        actions={<MonthSelect months={data.months} value={data.month} onChange={setMonth} />}
       />
 
       <PartialMonthNotice partialMonths={data.partialMonths} />
@@ -91,7 +88,7 @@ export default function BehavioralHealth() {
         </Card>
       </div>
 
-      <Card title="Crisis & safety indicators" subtitle={`Event records for everyone in the PHS report, not only BH clients · ${monthLabel(data.month)} · six-month trend · change vs. previous month`} delay={0.2}
+      <Card title="Crisis & safety indicators" subtitle={`Event records involving BH clients in ${monthLabel(data.month)} · six-month trend · change vs. previous month`} delay={0.2}
         footer={<span><Icon name="info" size={13} style={{ verticalAlign: -2 }} /> Counted from PHS&rsquo;s real option labels (hover a tile to see exactly how). Property damage has no PHS option, so it&rsquo;s a minimum taken from narratives. Confirm definitions with Kristen before reporting externally.</span>}>
         <div className="multiples">
           {INDICATORS.map(([key, label, goal, how]) => {

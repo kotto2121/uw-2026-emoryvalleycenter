@@ -27,8 +27,8 @@ Express on `127.0.0.1`. In the packaged app it runs on a random port inside the 
 | POST | `/api/reviews/:id` | `{ action: "merge" \| "distinct", keepId? }` |
 | GET | `/api/people?q=` / `/api/people/:id` | Person registry / detail (aliases, enrollments, events). |
 | PATCH | `/api/people/:id` | Any of `{ display_name, is_behavioral: bool, is_test: bool }`. A BH roster import sets `is_behavioral` only while it has never been set. |
-| GET | `/api/reports/bh-roster?month&service=OP\|PSR` | Roster report rows. |
-| GET | `/api/reports/bh-roster.xlsx?month[&service]` | Excel export (both services if no service is given). |
+| GET | `/api/reports/bh-roster?month&service=OP\|PSR` | Roster report rows. Not used by the UI since the OP / PSR reports were dropped. |
+| GET | `/api/reports/bh-roster.xlsx?month[&service]` | Excel export (both services if no service is given). Not used by the UI; the packaged-app smoke test still calls it. |
 | GET | `/api/reports/incidents.xlsx?from&to[&includeDuplicates=1]` | Incident report workbook (Summary, Month, Site, Individual, Tier 1/2, Behavior, Medical, Other, Reportable, Discovery, Location, Requirements, Injury). |
 | POST | `/api/demo/load` | Replace all data with fictitious demo data (refused if real data is loaded). |
 | POST | `/api/admin/clear` | `{ confirm: "CLEAR" }`. Wipes all data (backup first). |

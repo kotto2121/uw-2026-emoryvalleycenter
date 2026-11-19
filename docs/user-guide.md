@@ -7,12 +7,11 @@ This guide is for the people who run the monthly reporting. No technical backgro
 Each month you receive two things:
 
 1. **The PHS event report.** An Excel export from Practical Health Systems, "New Reportable Event Report", with one row per incident.
-2. **The Behavioral Health caseload document.** A Word file listing which people are on each Psychosocial Rehabilitation (PSR) and Individual Therapy (OP) caseload.
+2. **The Behavioral Health caseload document** (optional). A Word file listing which people are on each Psychosocial Rehabilitation (PSR) and Individual Therapy (OP) caseload. Importing it marks those people **Behavioral**.
 
 Greenhouse reads both files, works out which rows belong to the same person, and builds:
 
 - Dashboards: **Overview**, **Behavioral Health** and **Incidents & Safety**.
-- The **OP and PSR monthly reports**, previously built by hand from the Word document.
 - The **incident report workbook**, an Excel file with the same tabs as the manual report workbook (Month, Site, Individual, Tier 1, Tier 2, Behavior, Medical, Other, Reportable, Discovery, Location, Requirements, Injury).
 
 Everything stays on the laptop. Greenhouse has no internet connection and no cloud account.
@@ -44,7 +43,9 @@ Nothing is installed. To remove Greenhouse, delete the `.exe`. Your data is kept
 
 The file can be one month, several months, or a whole year, and it can be the raw export or a workbook with extra tabs. Greenhouse imports the sheet that holds the export and tells you if it ignored another sheet that looked similar.
 
-### Step 2: Import the Behavioral Health caseload document
+### Step 2 (optional): Import the Behavioral Health caseload document
+
+This only ticks **Behavioral** for the people on it. You can tick it yourself on a person's page instead (see [People screen](#5-people-screen)). Greenhouse reports BH clients as one group, not OP and PSR separately.
 
 1. Drag the Word file (`.docx`) onto **Behavioral health roster**. If you have an old `.doc` file, open it in Word and use *Save As → Word Document (.docx)* first.
 2. Greenhouse shows a **preview** before importing anything:
@@ -68,17 +69,14 @@ The queue shrinks over time. The first month needs the most review; later months
 ### Step 4: Check the dashboards
 
 - **Overview:** headline numbers for the latest *complete* month, with trends.
-- **Behavioral Health:** OP and PSR counts, people in both services, BH clients with an incident, and the crisis and safety indicators.
+- **Behavioral Health:** people marked Behavioral — how many had an incident, their incident records, and the crisis and safety indicators, all counted for BH clients only.
 - **Incidents & Safety:** everything in the PHS export, with filters by month range and site.
 
 Hover over any chart for exact values. Click a site bar to filter by that site. Click a row in **Event records** to see the full record.
 
 ### Step 5: Export the reports
 
-Open **Reports**:
-
-- **Incident report workbook:** choose a month range, then **Download (Excel)**. This replaces the manual report workbook.
-- **OP and PSR reports:** choose the month, then **Both reports (Excel)**, the per-report **Excel** button, or **Print**.
+Open **Reports**, choose a month range for the **Incident report workbook**, then **Download (Excel)**. This replaces the manual report workbook.
 
 When you save, Windows asks where to put the file.
 
@@ -93,6 +91,11 @@ When you save, Windows asks where to put the file.
 ## 5. People screen
 
 **People** lists everyone Greenhouse knows about. It shows every spelling seen in the source files, their BH services by month, and their event records. You can rename how a person is displayed; the original spellings are kept.
+
+Each person's page has two boxes:
+
+- **Behavioral patient.** Ticked means the person counts as a BH client everywhere in Greenhouse. Untick it when someone leaves BH; nothing unticks it automatically.
+- **Test patient.** Ticked means the person is left out of every count.
 
 This screen shows names. Use it only on a secure computer, and don't screen-share it outside authorized staff.
 
