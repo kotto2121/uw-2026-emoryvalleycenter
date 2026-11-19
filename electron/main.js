@@ -147,9 +147,9 @@ async function createMainWindow(api) {
           const bh = await j("/api/bh");
           const xlsx = await j("/api/reports/bh-roster.xlsx?month=" + bh.b.month);
           const unauth = (await fetch(apiUrl + "/api/meta")).status;
-          return { page, demo: demo.s, events: demo.b.meta && demo.b.meta.events, op: bh.b.current && bh.b.current.op, xlsxBytes: xlsx.b, unauth };
+          return { page, demo: demo.s, events: demo.b.meta && demo.b.meta.events, bhPeople: bh.b.bhPeople, xlsxBytes: xlsx.b, unauth };
         })()`);
-        const ok = r.demo === 201 && r.events > 0 && r.op > 0 && r.xlsxBytes > 1000 && r.unauth === 401;
+        const ok = r.demo === 201 && r.events > 0 && r.bhPeople > 0 && r.xlsxBytes > 1000 && r.unauth === 401;
         smokeResult({ ok, ...r }, ok ? 0 : 1);
       } catch (err) {
         smokeResult({ ok: false, error: String(err && err.stack || err) }, 1);

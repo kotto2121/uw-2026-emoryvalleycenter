@@ -77,19 +77,19 @@ The workbook rebuilds the tabs of the manual report workbook. Every tab lists **
 
 Not reproduced: the manual workbook's "Type" tab, which depends on an "Incident Types" column that the raw export doesn't contain, and its charts. The dashboards provide the charts.
 
-## What works without the Word roster
+## Who counts as a BH client
 
-The Word roster is the **only** source of who receives OP and PSR. Without it:
+Behavioral is a **person-level** fact: the Behavioral box on a person's page is the only source of truth for every BH number (Behavioral Health dashboard, Behavioral Metrics, Overview). It has no month history, so a past month shows today's boxes. OP / PSR service is not reported — the program reports BH as one group.
 
-| Works with the PHS export alone | Needs the roster |
+The Word roster is optional. Importing one ticks Behavioral for everyone on it whose box was never set by hand; it never unticks anyone. Someone who leaves BH stays counted until their box is unticked.
+
+| Works with the PHS export + Behavioral boxes | Needs the roster |
 |---|---|
-| Incidents & Safety dashboard (all of it) | People in OP / PSR / both |
-| All safety indicators and their trends, for **everyone** in the export | BH clients with an incident |
-| Incident report workbook (all tabs) | OP and PSR monthly reports |
-| Overview: people in records, incidents, reportable | Behavioral Health enrollment trend |
-| People registry, Review Queue | Indicators restricted to BH clients only |
+| Behavioral Health dashboard (all of it) | OP and PSR monthly reports |
+| Behavioral Metrics, Incidents & Safety, Overview | |
+| Incident report workbook (all tabs) | |
 
-The Behavioral Health page still opens without a roster and shows the indicators for everyone, with a banner explaining what's missing.
+The Crisis & safety indicators on the Behavioral Health page count **everyone** in the export, not only BH clients; Behavioral Metrics has the Behavioral / Non-Behavioral split.
 
 ## Data Metric Goals coverage
 
