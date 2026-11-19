@@ -63,6 +63,9 @@
 | `event_report` | PHS export row | the 14 source fields (normalized names), `row_hash` (unique), `is_exact_duplicate`, `person_id`, `event_month`, `is_reportable`, `f_*` indicator flags |
 | `bh_enrollment` | roster entry | raw_name, service (OP/PSR), report_month, person_id, `extra_json` (site, frequency, staff, status, section) |
 | `app_meta` | setting | e.g. `classifier_version` |
+| `column_mappings` | known column heading per program | program (e.g. `phs_incidents`), field, alias (squashed heading), required |
+
+`event_report.extra_fields` (JSON) holds columns the user chose to keep as new fields during the unknown-column review.
 
 **Persistence:** sql.js keeps the database in memory. After each committed transaction the whole database is written to a temp file and renamed over the real one (an atomic replace). A copy goes to `backups\` before every import, undo or clear, and the last 10 are kept. At EVC's scale (thousands of rows a year) this is fast and simple.
 

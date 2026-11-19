@@ -62,17 +62,23 @@ Header text is compared ignoring case, spaces and punctuation. Each field accept
 | `injury_description` | Injury Description |
 | `injury_level` | Level of Injury, Injury Level |
 
-- Column order doesn't matter, and extra columns are ignored (listed as "unmapped headers").
+- Column order doesn't matter.
 - A missing optional column produces a warning and stays blank.
 - If the same heading appears twice, only the first is used.
+
+**Unknown columns and saved mappings.** The Import Center imports Excel in two steps: `POST /api/imports/analyze`, then `POST /api/imports/:uploadId/commit`.
+
+1. *Analyze* lists any column it doesn't recognise, with sample values.
+2. For each unknown column, the user chooses **map** (it's another name for a known field), **new** (keep it as an extra field, stored in `event_report.extra_fields` as JSON) or **ignore**.
+3. Decisions marked *remember* are saved in the `column_mappings` table (per program), so next month's file with the same heading imports without asking.
+4. Required columns (date, member name) can be mapped this way too. The import is refused until they resolve.
 
 ### Step 4: Cleaning values
 
 | Rule | Detail |
 |---|---|
-| Blanks | Empty and whitespace-only cells become `NULL`. Non-breaking spaces count as spaces. |
-| Placeholders | `No Data Reported` / `*No Data Reported` (from hand-edited copies) become `NULL`. |
-| Trimming | Leading and trailing whitespace is trimmed. Internal spelling and capitalisation are kept. |
+| Shared normalizer | Every text cell goes through `normalizeValue()` in `db/normalize.js`, the single place for value-cleaning rules, also used for roster names and details. It applies Unicode NFKC, turns non-breaking and other exotic spaces into spaces, trims, and collapses internal whitespace. Spelling and capitalisation are otherwise kept. |
+| Blanks and placeholders | Empty cells and known "not recorded" spellings become `NULL`. Matching ignores case and punctuation: `N/A`, `n.a.`, `NA`, `none`, `null`, `-`, `?`, `TBD`, `not applicable`, `not recorded`, `No Data Reported` / `*No Data Reported` … The list is `SENTINELS` in `db/normalize.js`. **"Unknown" is deliberately *not* on the list**, because it's a real PHS Event Location option. |
 | Dates | `MM/DD/YYYY` or `M/D/YY` text, real Excel dates, Excel serial numbers, or ISO `YYYY-MM-DD`. Stored as `YYYY-MM-DD`. Unreadable dates are kept with no month and counted in a warning. |
 | Numbers in text fields | Converted to text (one real injury description was a number). |
 | Hidden rows | Imported anyway. The warning says how many rows a filter had hidden. |
