@@ -1,0 +1,61 @@
+{
+  "name": "emoryvalley",
+  "productName": "EmoryValley",
+  "version": "0.1.0",
+  "description": "Hello-world Electron app: Next.js front end, Express API, SQLite (sql.js) database.",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n api,ui,electron \"npm:dev:api\" \"npm:dev:ui\" \"npm:dev:electron\"",
+    "dev:api": "node api/server.js",
+    "dev:ui": "next dev app -p 3000",
+    "dev:electron": "wait-on http://localhost:3000 http://localhost:4100/health && cross-env ELECTRON_START_URL=http://localhost:3000 NODE_ENV=development electron .",
+    "build:ui": "next build app",
+    "start:api": "NODE_ENV=production node api/server.js",
+    "dist": "npm run build:ui && electron-builder",
+    "dist:win": "npm run build:ui && electron-builder --win",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "sql.js": "^1.12.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "com.emoryvalley.app",
+    "productName": "EmoryValley",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "api/**/*",
+      "db/**/*",
+      "app/out/**/*",
+      "node_modules/**/*",
+      "!api/README.md"
+    ],
+    "asarUnpack": [
+      "node_modules/sql.js/dist/sql-wasm.wasm"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
