@@ -37,6 +37,13 @@ function smokeResult(result, code) {
 }
 const SPLASH_MIN_MS = 2200; // let the logo animation play out
 
+// macOS ignores the BrowserWindow `icon` option (the dock icon comes from the
+// app bundle, which in dev is the stock Electron icon) — set it explicitly.
+const ICON_PATH = path.join(ROOT, "electron", "assets", "icon.png");
+if (process.platform === "darwin" && require("fs").existsSync(ICON_PATH)) {
+  app.whenReady().then(() => { try { app.dock.setIcon(ICON_PATH); } catch {} });
+}
+
 let apiServer = null;
 let mainWindow = null;
 let splash = null;
