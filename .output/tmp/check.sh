@@ -1,0 +1,1 @@
+git log --oneline -3 -- db/normalize.js; echo "---"; node -e "require('./db/normalize.js'); require('./api/lib/importer.js'); require('./api/lib/incidents-xlsx.js'); console.log('requires OK')" 2>&1 | tail -2; echo "---"; ls api/__tests__ api/test tests 2>/dev/null; git diff --stat

@@ -1,0 +1,13 @@
+{
+  "roster_names": 103,
+  "excel_distinct_names": 101,
+  "a_exact": 0,
+  "b_normalized": 35,
+  "c_nickname_or_prefix": 6,
+  "d_typo": 0,
+  "e_no_match": 62,
+  "f_ambiguous": 0,
+  "excel_names_in_last_comma_first_format_percent": 100.0,
+  "roster_names_in_last_comma_first_format_percent": 0.0,
+  "notes": "The supplied event export spans 6 months, so these are whole-file overlap counts, not same-month reliability estimates. The roster has update/as-of dates rather than an explicit reporting month. Counts use distinct trimmed roster names after removing trailing status annotations, exclude schedule/summary rows and include all client-name columns in all nine tables. Distinct Excel name strings remain distinct candidates even if they normalize identically. Exact, normalized, nickname/prefix, then surname-typo tiers are applied in order; more than one candidate at the strongest available tier is ambiguous. Nicknames use a finite common-nickname list. A non-match does not establish that a person had no events in a particular month."
+}

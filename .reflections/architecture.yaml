@@ -1,0 +1,85 @@
+- id: ref_0223f230
+  created_at: 2026-11-19T18:49:58.130Z
+  source_episode: |-
+    ses_4913655c · Global sentinel norm
+     ▒▒▒▒▒░░░░░  importer.js ██░░░░
+     ▒▒▒▒▒░░░░░  incidents-xlsx.js ██░░░░
+     ▒▒▒▒▒░░░░░  normalize.js ██░░░░
+     shape: ▓▓ST▓▓T▓T▒
+     tools: files.read×12 files.edit×4 tasks.done×3 search×2 ex…
+     tasks: ██████████ 3/3
+  category: architecture
+  content: db/normalize.js is the single source of truth for value normalization
+    (sentinel detection, NFKC canonicalization, whitespace collapse). All ingest
+    paths (xlsx, docx) must route through it rather than implementing ad-hoc
+    cleanup.
+  tags:
+    - normalization
+    - ingest
+    - canonicalization
+  superseded_by: null
+- id: ref_395aede7
+  created_at: 2026-11-19T19:20:03.426Z
+  source_episode: |-
+    ses_724f0fd1 · Graceful schema-disc
+     ▒▒▒▒▒░░░░░  incidents-xlsx.js ██░░░░
+     ▒▒▒▒▒░░░░░  server.js ██░░░░
+     ▒▒▒▒▒░░░░░  import.js ██░░░░
+     shape: ▓S▓TTT▓TT▓
+     tools: files.script×16 files.read×15 files.edit×12 tasks.d…
+     tasks: ████████░░ 5/6
+  category: architecture
+  content: "The XLSX import pipeline uses a three-tier confidence model
+    (full/partial/none) based on alias hit counts to determine UI flow: full
+    auto-maps, partial shows column mapping with required-field gates, and none
+    presents a click-to-orient preview grid. This replaces hard 422 errors for
+    unrecognized schemas."
+  tags:
+    - import
+    - xlsx
+    - schema-discovery
+    - confidence-grading
+  superseded_by: null
+- id: ref_a67fec24
+  created_at: 2026-11-19T19:20:03.432Z
+  source_episode: |-
+    ses_724f0fd1 · Graceful schema-disc
+     ▒▒▒▒▒░░░░░  incidents-xlsx.js ██░░░░
+     ▒▒▒▒▒░░░░░  server.js ██░░░░
+     ▒▒▒▒▒░░░░░  import.js ██░░░░
+     shape: ▓S▓TTT▓TT▓
+     tools: files.script×16 files.read×15 files.edit×12 tasks.d…
+     tasks: ████████░░ 5/6
+  category: architecture
+  content: "Import validation is split across two API endpoints: /analyze performs
+    schema discovery and returns confidence state, while /commit enforces
+    required-field mapping gates and persists data. The headerRow parameter
+    flows through both to support user-directed orientation of unknown files."
+  tags:
+    - import
+    - api-design
+    - validation
+    - header-row
+  superseded_by: null
+- id: ref_a2b1dd6b
+  created_at: 2026-11-19T19:26:50.787Z
+  source_episode: |-
+    ses_f403c4af · Add docs/build-windo
+     ▒▒▒▒▒░░░░░  README.md ███░░░
+     ▒▒▒▒▒░░░░░  build-windows.md ███░░░
+     shape: ▒▒▒STT▒▒▒T
+     tools: explore×6 tasks.done×3 files.edit×2 files.read×2 ru…
+     tasks: ██████████ 3/3
+  category: architecture
+  content: "The Windows build pipeline is: npm run dist:win triggers next build →
+    esbuild bundles main process to dist/main.js + sql-wasm.wasm →
+    electron-builder produces NSIS installer and portable exe in release/. The
+    sql-wasm.wasm file must be asarUnpack'd since it cannot load from inside the
+    asar archive."
+  tags:
+    - build
+    - windows
+    - electron-builder
+    - esbuild
+    - wasm
+  superseded_by: null

@@ -1,0 +1,60 @@
+{
+  "standalone_cell_verification": {
+    "Tier 1 Events": {
+      "Alleged Emotional/Psychological Abuse": 1,
+      "Death-Unexpected and/or Unexplained": 2,
+      "Alleged Sexual Abuse": 1,
+      "Alleged Neglect": 1,
+      "Alleged Physical Abuse": 2
+    },
+    "Tier 2 Events": {
+      "Alleged Emotional/Psychological Abuse": 1,
+      "Alleged Neglect": 10,
+      "Alleged Physical Abuse": 1
+    },
+    "Behavioral/Psychiatric Events": {
+      "Behavioral Crisis requiring crisis intervention": 7,
+      "Engagement with Law Enforcement": 1,
+      "Physical Aggression": 3
+    },
+    "Event Interventions": {
+      "911 Call": 5,
+      "EMT": 1,
+      "Emergency Room Visit": 24,
+      "Police": 2,
+      "Mobile Crisis Services": 1,
+      "Urgent Care Facility": 8,
+      "Abdominal Thrust/Back Blows/Heimlich Maneuver": 1
+    }
+  },
+  "labels_seen_only_in_concatenated_cells": {
+    "Tier 1 Events": [],
+    "Tier 2 Events": [],
+    "Behavioral/Psychiatric Events": [
+      "Psychiatric Admission (for observation) including in an acute care hospital",
+      "Reportable Behavior involving physical aggression and/or self-injurious behavior resulting in injury to another person",
+      "Self-Injurious Behavior",
+      "Suicide Attempt",
+      "Housemate",
+      "Staff"
+    ],
+    "Event Interventions": [
+      "Administration of PRN Psychotropic Medication",
+      "Fire Department",
+      "X-ray (to rule out fracture)"
+    ]
+  },
+  "notes": [
+    "Only labels in standalone_cell_verification meet the prompt requirement for a standalone whole-cell occurrence. Remaining labels were inferred by complete unambiguous segmentation of recurring concatenated values; they are not independently confirmed form options.",
+    "Staff and Housemate appear to be target subchoices inside the behavioral field; confirm form hierarchy before treating them as event types.",
+    "Observed labels are not an exhaustive catalog of unselected PHS options.",
+    "Other Event Types values not confidently recognized as categories are conservatively counted as narrative, including one repeated short phrase.",
+    "Counts are event rows containing a label, counted once per row. unsplittable_examples_count counts affected rows, excluding blanks.",
+    "Value arrays for the four single-select columns contain objects with label and rows so counts are retained.",
+    "Mobile Crisis Services indicates service involvement, not proof a telephone call occurred. Behavioral Crisis requiring crisis intervention indicates a crisis event; 911 Call does not specifically imply a behavioral crisis call.",
+    "The mixed reportable-behavior option can mean aggression OR self-injury and is therefore excluded from a definitive self-injury mapping. The mixed Other self-injury/disruptive category is included as a broad flag, not a confirmed self-injury event.",
+    "Psychiatric Admission (for observation) including in an acute care hospital is an observation/admission flag and does not by itself prove inpatient status. Medical Events was not included in the requested option extraction, so the hospitalization mapping is incomplete for medical admissions.",
+    "No property-damage option was recovered from the requested fields. An empty mapping does not mean zero property-damage events.",
+    "The source XLSX contained an empty fill element. A valid empty patternFill was substituted only in an in-memory copy to allow openpyxl to read it; source values and source file were unchanged."
+  ]
+}

@@ -1,113 +1,102 @@
 # Greenhouse by Emory Valley Center
 
-A minimal **hello-world Electron app** with a clean three-tier layout:
+A **local-first desktop dashboard** for Emory Valley Center (EVC). It runs entirely on one Windows laptop: no server, no subdomain, no cloud, and no internet connection.
 
-- **`app/`** — React front end built with **Next.js** (static export).
-- **`api/`** — minimal **Node.js / Express** API (routes documented in [`api/README.md`](api/README.md)).
-- **`db/`** — **SQLite** database layer (via [`sql.js`](db/index.js), a pure-WASM build of SQLite — *no native compilation required*, so it runs identically on macOS and Windows).
+**What it does now (MVP: behavioral health monthly workflow):**
 
-Electron ties it together: the main process starts the Express API and loads the Next.js UI. The UI fetches `Hello World` from the API, which reads it out of SQLite.
+1. **Import** the PHS *New Reportable Event Report* (.xlsx) and the monthly *Behavioral Health roster* Word document (.docx).
+2. **Match people across files** without a client ID: a person registry with name normalization and fuzzy matching. Close-but-uncertain matches go to a **Review Queue** for a human decision, and every decision is remembered.
+3. **Dashboards:** Overview, Behavioral Health (OP / PSR enrollment plus crisis indicators), Incidents & Safety and Behavioral Metrics (each metric split Behavioral / Non-Behavioral, monthly trend, by site, by person), with filters by month, site, segment and reportability. People can be marked **Behavioral** (a BH roster import ticks it to start) or **Test** (left out of every count) on their page.
+4. **Reports:** the monthly OP and PSR reports that used to be built by hand, exported as Excel or printed.
+5. **Roadmap pages** for every other program in EVC's Data Metric Goals.
 
-## Layout
+It also ships with **six months of fictitious demo data** that statistically mirrors the real PHS export (see `api/lib/demo.js`).
+
+> **Full documentation is in [`docs/`](docs/README.md):** the user guide, metric definitions, how the parsers work, person matching, architecture, privacy, the developer guide, limitations and troubleshooting.
+
+## Architecture
 
 ```
-.
-├── app/            # Next.js front end (Pages Router, static export -> app/out)
-│   ├── next.config.js
-│   └── pages/index.js
-├── api/            # Express API
-│   ├── server.js   # createApp() + standalone listener
-│   └── README.md   # route documentation
-├── db/             # SQLite (sql.js) data layer
-│   └── index.js
-├── electron/       # Electron main + preload
-│   ├── main.js
-│   └── preload.js
-├── package.json    # root scripts + electron-builder config
-└── README.md
+electron/        main process: splash → local API → main window
+  main.js        random port + per-launch secret token, single instance, navigation lock-down
+  preload.js     exposes window.evc = { apiUrl, token, platform } (nothing else)
+  splash.html    animated launch screen (logo draws in, Outlook-style)
+api/             Express API (127.0.0.1 only, token required on /api/*)
+  server.js      routes (documented in api/README.md)
+  lib/           incidents-xlsx.js (Excel reader), docx-tables.js (Word table reader),
+                 importer.js, queries.js (dashboards), reports.js (Excel export), demo.js,
+                 xlsx-read.js (tolerant .xlsx reader)
+db/              SQLite via sql.js (pure WASM — no native build tools)
+  index.js       schema, atomic saves, automatic backups
+  names.js       name parsing, nicknames, Jaro–Winkler similarity
+  people.js      person registry, auto-link rules, Review Queue, merges
+  classify.js    PHS option dictionaries + crisis/police/hospitalization flags
+app/             Next.js (pages router) static export → app/out
+  components/    Layout (sidebar/topbar), charts, KPI tiles, drawer, icons, logo
+  pages/         index (Overview), behavioral-health, incidents, metrics, import, review,
+                 people, reports, programs (roadmap), settings — see app/README.md
+docs/            user guide, metrics, parsing, matching, architecture, privacy, dev guide, limitations;
+                 chatgpt-prompt.md + chatgpt-outputs/ (structure-only analysis of real files)
+demo-data/       generated fictitious files for testing the import flow
+
+**Docs:** routes + running the API standalone → [`api/README.md`](api/README.md) · frontend pages & wiring → [`app/README.md`](app/README.md)
 ```
 
-## Prerequisites
+### Privacy and security model
 
-- **Node.js 18+** (tested on Node 24) and npm.
-- Nothing else — no Python, no Visual Studio Build Tools, no C++ compiler. SQLite is WASM (`sql.js`), so there are **zero native modules** to rebuild on a new machine.
+- The API listens on `127.0.0.1` only, on a random port, and every `/api` call must carry a 64-character secret generated at launch. That stops a website open in the browser from reading data off the local port. There is no wildcard CORS, and the Host header is checked.
+- The renderer is sandboxed and context-isolated, with no Node access. External links open in the default browser, and all permission requests (camera, location and so on) are denied.
+- The database is one SQLite file in `%APPDATA%\Greenhouse by Emory Valley Center\`. Saves are atomic (temp file, then rename), and a backup is taken before every import, undo or clear (the last 10 are kept).
+- **Not yet:** at-rest encryption beyond Windows BitLocker, and per-user roles. Both are on the roadmap.
 
-## Run in development
+### Matching people without an ID
+
+PHS exports and the Word roster have no shared client ID. `db/people.js` applies, in order:
+
+1. **Exact alias:** this exact string was seen before, so it's the same person.
+2. **Normalized:** "SMITH, JOHN A." equals "John Smith" (order, case, punctuation, middle initials and suffixes are ignored). Auto-linked.
+3. Otherwise a **new person** is created, and if someone similar exists (nicknames, typos, swapped names; score ≥ 0.82), a **Review Queue** item asks "same person?". Merge or distinct; the decision is stored permanently.
+
+Known limitation: two different people with the identical normalized name are auto-linked. If PHS can export an Individual ID, add it as a column and match on that first.
+
+## Develop
 
 ```bash
 npm install
 npm run dev
 ```
 
-`npm run dev` starts three things together (via `concurrently`):
+This starts the API (`:4100`, token `dev-token`), the Next.js dev server (`:3000`) and Electron. Click **Explore with demo data** on the welcome screen, or run `npm run demo:files` and drag files from `demo-data/` into the Import Center.
 
-1. **API** on `http://localhost:4100` (`node api/server.js`)
-2. **Next.js dev server** on `http://localhost:3000`
-3. **Electron**, which waits for both to be healthy (`wait-on`) and then opens a window pointing at the Next.js dev server.
+To run only the UI in a browser: `npm run dev:api` plus `npm run dev:ui`, then open http://localhost:3000 (it falls back to the dev token).
 
-You should see **"Hello World"** in the Electron window, with a list of greetings loaded from SQLite and a form to add more.
+## Build for Kristen's Windows laptop
 
-> The SQLite file in dev lives at `./db/emoryvalley.db` (created + seeded on first run).
+One command builds the installer + portable exe: `npm run dist:win` (works on Windows and cross-builds from macOS). Better: **GitHub Actions builds it on a real Windows runner and smoke-tests the packaged exe before you download it** — Actions → "Build Windows app" → Artifacts. The exe is unsigned, so SmartScreen will warn; **test on her laptop early** — IT policy (AppLocker or Defender) may block unsigned apps entirely.
 
-## Run the production path locally
+Full details — pipeline steps, output locations, shortcuts, troubleshooting → [`docs/build-windows.md`](docs/build-windows.md).
 
-This is what the packaged app does — the API serves the static export and Electron loads it over `http://localhost:4100`:
+## Brand
 
-```bash
-npm run build:ui          # next build -> app/out (static export)
-NODE_ENV=production npm run start:api &   # API serves app/out + /api/*
-NODE_ENV=production npx electron .        # loads http://localhost:4100
-```
+The logo is a **placeholder** (a sprout in a ring). To apply EVC's brand:
 
-## Build for Windows (deliver to a colleague's laptop)
+- Replace the SVG in `app/components/Logo.js` and `electron/splash.html`, and the icon in `build/icon.png` and `electron/assets/icon.png` (512×512).
+- Update the color tokens at the top of `app/styles/globals.css` and in `electron/splash.html`.
+- The chart colors (`SERIES` in `app/components/charts.js`) were checked for color-blind safety. Re-validate them if you change them.
 
-The app is configured with **electron-builder** for Windows (`nsis` installer + `portable` exe). See the `build` block in `package.json`.
+## What we learned from EVC's real files (via ChatGPT, structure only)
 
-### Recommended: build on a Windows machine
+The outputs are in `docs/chatgpt-outputs/`.
 
-Building a signed, native Windows installer is most reliable **on Windows itself**. On the colleague's (or any) Windows PC:
+- **BH roster (Word):** nine tables. PSR tables are headed "<staff> — Total: N (Psychosocial Rehabilitation-PSR)" and OP tables "Therapist: <staff> — Total: N (Individual Therapy)". They're followed by a 1:1 PSR table and an "Additional Caseload" table. Most tables have no header row, and names are in the 3rd cell, written "First Last". The parser is in `api/lib/docx-tables.js`; it checks each table's count against the heading's "Total: N".
+- **PHS export (Excel):** names are 100% "Last, First". There is no client ID or date of birth in either file. Real option labels are now in `db/classify.js`.
+- **Name overlap (6 months of events vs one roster):** 35 normalized matches and 6 nickname/prefix matches out of 103 roster names. 62 roster clients had no events at all in those months, which is plausible. There were no ambiguous matches.
 
-```powershell
-# 1. Install Node.js LTS from https://nodejs.org (includes npm).
-# 2. In a terminal, from the project root:
-npm install
-npm run dist:win
-```
+## Next steps
 
-Output lands in `release/`:
-
-- `Greenhouse by Emory Valley Center Setup 0.1.0.exe` — NSIS installer (lets the user pick install dir).
-- `Greenhouse by Emory Valley Center 0.1.0.exe` — portable single-file exe (no install needed; just double-click).
-
-Copy either file to the colleague's laptop and run it. **That's the whole delivery.** No Node.js install required on their machine — Electron bundles its own runtime.
-
-### Building the Windows target from macOS/Linux (cross-compile)
-
-electron-builder *can* produce Windows artifacts from macOS, but with caveats — be honest about these:
-
-- **NSIS installer** cross-built from macOS generally works and is fine to hand over.
-- **Code signing** on Windows requires a Windows environment (or a hosted signing service) — unsigned builds will trigger SmartScreen "Windows protected your PC" warnings. The colleague clicks "More info → Run anyway". This is normal for unsigned internal tools.
-- **Portable/NSIS** need no Wine for pure-JS/WASM apps (we have no native modules), so cross-build from macOS usually succeeds:
-  ```bash
-  npm run dist:win
-  ```
-  If it fails on your Mac, fall back to building on Windows (above) — that path is guaranteed.
-
-> Because this app uses **sql.js (WASM)** instead of `better-sqlite3`, there are no platform-specific binaries to compile, which is exactly why cross-building and the Windows install are painless here.
-
-## Scripts reference
-
-| Script | Does |
-|---|---|
-| `npm run dev` | API + Next.js dev server + Electron, together. |
-| `npm run dev:api` / `dev:ui` / `dev:electron` | Individual pieces. |
-| `npm run build:ui` | `next build` → static export in `app/out`. |
-| `npm run start:api` | Run API in production mode (serves `app/out`). |
-| `npm run dist` | Build UI + package for the current OS. |
-| `npm run dist:win` | Build UI + package Windows installer + portable exe. |
-
-## Notes / known limitations
-
-- **Unsigned** — fine for internal hand-off; expect a SmartScreen prompt on first launch.
-- The DB is a single local SQLite file per machine (in the OS user-data dir for packaged builds: `%APPDATA%\Greenhouse by Emory Valley Center\emoryvalley.db` on Windows).
-- CORS is wide open (`*`) because the API is local-only and meant for the Electron renderer. Don't expose it to a network.
+- Kristen: what does "Additional Caseload" mean (OP, PSR, or something else)? It's skipped by default.
+- Kristen: which month does a roster dated "Updated <date>" represent?
+- Confirm the "inferred" PHS labels on the actual form (see `Option_label_verification.json`).
+- Property damage has no PHS option, so the count comes from narrative text only. Decide whether EVC should track it differently.
+- Ask whether PHS can export an Individual ID; if so, match on it before names.
+- Next program importers: Rolling Census (PHS demographics), then Employment Services.

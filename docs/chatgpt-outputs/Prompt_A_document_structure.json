@@ -1,0 +1,740 @@
+{
+  "file_type": "docx",
+  "page_or_section_count": 1,
+  "report_month_signal": "No explicit monthly report label; an Updated date appears in the third title-block paragraph, and an As of date appears above the final table.",
+  "document_outline": [
+    {
+      "type": "paragraph",
+      "text": "Behavioral Health"
+    },
+    {
+      "type": "paragraph",
+      "text": "Caseloads"
+    },
+    {
+      "type": "paragraph",
+      "text": "Updated <report date>"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[staff name omitted] — Total: <count> (Psychosocial Rehabilitation-PSR)"
+    },
+    {
+      "type": "table",
+      "table_index": 0,
+      "heading_just_before": "[staff name omitted] — Total: <count> (Psychosocial Rehabilitation-PSR)",
+      "service_it_lists": "PSR",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "",
+        "",
+        ""
+      ],
+      "has_header_row": false,
+      "data_row_count": 24,
+      "name_column_header": "(unlabeled third physical cell)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 24,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": false,
+      "blank_rows": 8,
+      "repeated_header_rows": 3,
+      "other_columns": [
+        {
+          "header": "(unlabeled first physical cell)",
+          "kind": "other",
+          "fill_rate_percent": 95.8
+        },
+        {
+          "header": "(unlabeled second physical cell)",
+          "kind": "frequency",
+          "fill_rate_percent": 100.0
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "[staff name omitted] — PSR caseload"
+    },
+    {
+      "type": "table",
+      "table_index": 1,
+      "heading_just_before": "[staff name omitted] — PSR caseload",
+      "service_it_lists": "PSR",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "",
+        "",
+        ""
+      ],
+      "has_header_row": false,
+      "data_row_count": 18,
+      "name_column_header": "(unlabeled third physical cell)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 18,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": true,
+      "blank_rows": 1,
+      "repeated_header_rows": 2,
+      "other_columns": [
+        {
+          "header": "(unlabeled first physical cell)",
+          "kind": "other",
+          "fill_rate_percent": 100.0
+        },
+        {
+          "header": "(unlabeled second physical cell)",
+          "kind": "frequency",
+          "fill_rate_percent": 100.0
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[staff name omitted] — Total: <count> (Psychosocial Rehabilitation-PSR)"
+    },
+    {
+      "type": "table",
+      "table_index": 2,
+      "heading_just_before": "[staff name omitted] — Total: <count> (Psychosocial Rehabilitation-PSR)",
+      "service_it_lists": "PSR",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "",
+        "",
+        ""
+      ],
+      "has_header_row": false,
+      "data_row_count": 12,
+      "name_column_header": "(unlabeled third physical cell)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 12,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": false,
+      "blank_rows": 8,
+      "repeated_header_rows": 2,
+      "other_columns": [
+        {
+          "header": "(unlabeled first physical cell)",
+          "kind": "other",
+          "fill_rate_percent": 100.0
+        },
+        {
+          "header": "(unlabeled second physical cell)",
+          "kind": "frequency",
+          "fill_rate_percent": 100.0
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[staff name omitted] — Total: <count> (Psychosocial Rehabilitation-PSR)"
+    },
+    {
+      "type": "table",
+      "table_index": 3,
+      "heading_just_before": "[staff name omitted] — Total: <count> (Psychosocial Rehabilitation-PSR)",
+      "service_it_lists": "PSR",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "",
+        "",
+        ""
+      ],
+      "has_header_row": false,
+      "data_row_count": 29,
+      "name_column_header": "(unlabeled third physical cell)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 25,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": true,
+      "blank_rows": 4,
+      "repeated_header_rows": 0,
+      "other_columns": [
+        {
+          "header": "(unlabeled first physical cell)",
+          "kind": "other",
+          "fill_rate_percent": 100.0
+        },
+        {
+          "header": "(unlabeled second physical cell)",
+          "kind": "frequency",
+          "fill_rate_percent": 86.2
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "Therapist: [staff name omitted] — Total: <count> (Individual Therapy)"
+    },
+    {
+      "type": "table",
+      "table_index": 4,
+      "heading_just_before": "Therapist: [staff name omitted] — Total: <count> (Individual Therapy)",
+      "service_it_lists": "OP",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "",
+        "",
+        ""
+      ],
+      "has_header_row": false,
+      "data_row_count": 26,
+      "name_column_header": "(unlabeled third physical cell)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 26,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": true,
+      "blank_rows": 0,
+      "repeated_header_rows": 0,
+      "other_columns": [
+        {
+          "header": "(unlabeled first physical cell)",
+          "kind": "other",
+          "fill_rate_percent": 96.2
+        },
+        {
+          "header": "(unlabeled second physical cell)",
+          "kind": "frequency",
+          "fill_rate_percent": 92.3
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "Therapist: [staff name omitted] — Individual Therapy"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "Therapist: [staff name omitted] — Individual Therapy"
+    },
+    {
+      "type": "table",
+      "table_index": 5,
+      "heading_just_before": "Therapist: [staff name omitted] — Individual Therapy",
+      "service_it_lists": "OP",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "",
+        "",
+        ""
+      ],
+      "has_header_row": false,
+      "data_row_count": 5,
+      "name_column_header": "(unlabeled third physical cell)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 5,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": false,
+      "blank_rows": 0,
+      "repeated_header_rows": 0,
+      "other_columns": [
+        {
+          "header": "(unlabeled first physical cell)",
+          "kind": "other",
+          "fill_rate_percent": 100.0
+        },
+        {
+          "header": "(unlabeled second physical cell)",
+          "kind": "frequency",
+          "fill_rate_percent": 100.0
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "Therapist: [staff name omitted] — Individual Therapy"
+    },
+    {
+      "type": "table",
+      "table_index": 6,
+      "heading_just_before": "Therapist: [staff name omitted] — Individual Therapy",
+      "service_it_lists": "OP",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "",
+        "",
+        ""
+      ],
+      "has_header_row": false,
+      "data_row_count": 4,
+      "name_column_header": "(unlabeled third physical cell)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 4,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": false,
+      "blank_rows": 0,
+      "repeated_header_rows": 0,
+      "other_columns": [
+        {
+          "header": "(unlabeled first physical cell)",
+          "kind": "other",
+          "fill_rate_percent": 100.0
+        },
+        {
+          "header": "(unlabeled second physical cell)",
+          "kind": "frequency",
+          "fill_rate_percent": 100.0
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "1:1 (Psychosocial Rehabilitation-PSR)"
+    },
+    {
+      "type": "table",
+      "table_index": 7,
+      "heading_just_before": "1:1 (Psychosocial Rehabilitation-PSR)",
+      "service_it_lists": "PSR",
+      "how_service_is_indicated": "separate table under heading",
+      "column_headers": [
+        "Site",
+        "Frequency",
+        "[staff name omitted]",
+        ""
+      ],
+      "has_header_row": true,
+      "data_row_count": 3,
+      "name_column_header": "(third and fourth physical cells; staff header omitted)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 6,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": false,
+      "blank_rows": 7,
+      "repeated_header_rows": 0,
+      "other_columns": [
+        {
+          "header": "Site",
+          "kind": "other",
+          "fill_rate_percent": 66.7
+        },
+        {
+          "header": "Frequency",
+          "kind": "frequency",
+          "fill_rate_percent": 100.0
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "Additional Caseload: As of <report date>"
+    },
+    {
+      "type": "table",
+      "table_index": 8,
+      "heading_just_before": "Additional Caseload: As of <report date>",
+      "service_it_lists": "unclear",
+      "how_service_is_indicated": "other: additional caseload; OP versus PSR is not explicit",
+      "column_headers": [
+        "[staff name omitted]",
+        "[staff name omitted]"
+      ],
+      "has_header_row": true,
+      "data_row_count": 12,
+      "name_column_header": "(both columns; staff headers omitted)",
+      "name_formats_seen": {
+        "Lastname, Firstname": 0,
+        "Firstname Lastname": 22,
+        "Lastname, Firstname M.": 0,
+        "Firstname M. Lastname": 0,
+        "ALL CAPS": 0,
+        "includes suffix (Jr/Sr/II)": 0,
+        "includes nickname in quotes or parentheses": 0,
+        "other": 0
+      },
+      "multiple_names_in_one_cell": 0,
+      "names_split_across_two_columns": false,
+      "merged_cells": false,
+      "blank_rows": 2,
+      "repeated_header_rows": 0,
+      "other_columns": []
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[contact-procedure heading - generalized]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[behavioral contact heading - generalized]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "Therapy"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "PSR"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[additional contact heading - generalized]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": "[emergency contact heading - generalized]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": "[paragraph about a person - omitted]"
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    },
+    {
+      "type": "paragraph",
+      "text": ""
+    }
+  ],
+  "identifiers_present": {
+    "client_id_or_mrn": "no",
+    "date_of_birth": "no",
+    "medicaid_or_insurance_id": "no",
+    "other_unique_id": "no"
+  },
+  "same_person_listed_more_than_once": {
+    "within_a_table": 1,
+    "in_both_OP_and_PSR": 12
+  },
+  "parsing_gotchas": [
+    "page_or_section_count reports Word sections, not rendered pages.",
+    "There are nine top-level tables; the first four are PSR, the next three are individual therapy (mapped to OP), the eighth is 1:1 PSR, and the ninth has no explicit OP/PSR label.",
+    "The first seven tables have no semantic column-header row. A leading schedule/total row exists in tables 0–3 and must not be parsed as a client.",
+    "A global name-header search will miss clients: names are in the third physical cell for tables 0–6, in both third and fourth physical cells for table 7, and both columns for table 8.",
+    "Staff names serve as headers in the final two tables; those header texts are intentionally omitted from this structure-only output.",
+    "Tables 1, 3 and 4 declare four grid columns, but most rows contain three physical cells. Each has one cell with gridSpan=2; do not flatten row.cells without accounting for duplicated merged-cell references.",
+    "The final two tables contain independent people in adjacent columns, not first/last name parts split across columns.",
+    "Schedule/summary rows containing parenthetical service labels recur inside tables 0–2. These are not client rows. The final table includes name cells with trailing status annotations after a spaced hyphen; remove those annotations before matching.",
+    "Some populated rows have blank names; blank template rows are mixed with populated rows. data_row_count includes populated rows with blank names and excludes schedule/header/summary rows; fill rates use populated data rows as denominator. repeated_header_rows counts recurring schedule/summary rows, not automatic Word repeating-header flags.",
+    "The name-format categories describing order are mutually exclusive; ALL CAPS, suffix and nickname indicators are additional overlapping counts. Hyphenated surnames and nonbreaking spaces occur.",
+    "Counts of within-table repeats mean extra normalized name occurrences, not distinct repeated people. OP/PSR overlap counts exclude the final service-unclear table.",
+    "No automatic repeated-header flags, nested tables, text boxes, images or tracked insertions/deletions were found in the body. Explicit page breaks occur in later paragraphs.",
+    "The source package includes custom XML and footnote/endnote parts; the demo is rebuilt into a fresh package rather than copying those potentially sensitive parts.",
+    "After the roster tables there are contact instructions, staff names and phone numbers. They are omitted here and replaced with fake text in the demo."
+  ]
+}

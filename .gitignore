@@ -20,3 +20,16 @@ npm-debug.log*
 Thumbs.db
 .output/
 .env
+
+# Local database backups / temp writes
+db/backups/
+db/*.db.tmp
+
+# Real (non-demo) source files must never be committed
+imports/
+*.real.xlsx
+*.real.docx
+dist/
+
+# Rosters generated from (de-identified) real exports — never commit
+demo-data/from-export/

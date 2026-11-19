@@ -1,84 +1,75 @@
-# API — EmoryValley Express Server
+# API — Greenhouse local server
 
-Minimal Node.js / Express API backed by SQLite (via `db/index.js`, sql.js).
+Express on `127.0.0.1`. In the packaged app it runs on a random port inside the Electron main process, with a per-launch token. In dev it runs on port `4100` with token `dev-token`.
 
-- **Base URL (dev):** `http://localhost:4100`
-- **Run standalone:** `node api/server.js` (or `npm run dev:api`)
-- **In the packaged app:** started in-process by the Electron main process on the same port.
-- **CORS:** wide open (`*`) so the Electron renderer can call it from any origin.
+**Every `/api/*` request needs the header `x-evc-token: <token>`.** Missing or wrong token → `401`.
 
-## Routes
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness (no token). |
+| GET | `/api/meta` | Months available, sites, counts, pending reviews, demo flag. |
+| GET | `/api/overview` | 12-month trend (people, events, reportable, BH) and data sources. |
+| GET | `/api/bh?month=YYYY-MM` | Behavioral health KPIs for the month, previous month and trend. |
+| GET | `/api/incidents/summary?from&to&site&segment&reportable&includeDuplicates=1` | Incident KPIs and breakdowns (incl. Medical options and Other Event Types keyword groups). |
+| GET | `/api/incidents?from&to&site&segment&reportable&q&flag&limit&offset` | Event rows (with matched person). |
+| GET | `/api/metrics?from&to&site&segment&reportable&includeDuplicates=1` | Behavioral Metrics page: each metric's events/people split All / Behavioral / Non-Behavioral, monthly trend, by-site and by-person tables. |
+| POST | `/api/import/incidents` | Body: raw .xlsx bytes, header `x-filename`. Imports the PHS event report directly (no review step). |
+| POST | `/api/imports/analyze` | Body: raw .xlsx bytes, header `x-filename`. Parses the workbook in memory and returns an `uploadId`, warnings, unknown headers and missing required columns — nothing is committed yet. |
+| POST | `/api/imports/:uploadId/commit` | JSON `{ decisions: [{ header, action: "map"\|"new"\|"ignore", field?, remember? }] }`. Commits the held upload; `remember: true` persists the column mapping for next time. Held uploads expire (→ `410`) if not committed. |
+| GET | `/api/programs/:key/columns` | Column mappings (field ↔ Excel header aliases) for a program (`phs_incidents`). |
+| POST | `/api/programs/:key/columns` | JSON `{ field, alias, required? }`. Adds a mapping. |
+| DELETE | `/api/programs/:key/columns?alias=&[field=]` | Deletes a mapping by alias (optionally scoped to one field). |
+| POST | `/api/import/roster/preview` | Body: raw .docx bytes. Returns tables plus guessed month, service and name column. |
+| POST | `/api/import/roster/commit` | JSON `{ month, filename, tables }` (the edited preview). |
+| GET | `/api/imports` | Import history. |
+| DELETE | `/api/imports/:id` | Undo an import (backup first). |
+| GET | `/api/reviews?status=pending` | Review Queue items. |
+| POST | `/api/reviews/:id` | `{ action: "merge" \| "distinct", keepId? }` |
+| GET | `/api/people?q=` / `/api/people/:id` | Person registry / detail (aliases, enrollments, events). |
+| PATCH | `/api/people/:id` | Any of `{ display_name, is_behavioral: bool, is_test: bool }`. A BH roster import sets `is_behavioral` only while it has never been set. |
+| GET | `/api/reports/bh-roster?month&service=OP\|PSR` | Roster report rows. |
+| GET | `/api/reports/bh-roster.xlsx?month[&service]` | Excel export (both services if no service is given). |
+| GET | `/api/reports/incidents.xlsx?from&to[&includeDuplicates=1]` | Incident report workbook (Summary, Month, Site, Individual, Tier 1/2, Behavior, Medical, Other, Reportable, Discovery, Location, Requirements, Injury). |
+| POST | `/api/demo/load` | Replace all data with fictitious demo data (refused if real data is loaded). |
+| POST | `/api/admin/clear` | `{ confirm: "CLEAR" }`. Wipes all data (backup first). |
+| GET | `/api/admin/info` | Database path and version. |
 
-### `GET /health`
+Filters on `/api/incidents/summary`, `/api/incidents` and `/api/metrics`: `segment=behavioral|non` (the person's Behavioral box) and `reportable=reportable|non`. Test patients (`person.is_test = 1`) are left out of every count on every route, including the Excel reports.
 
-Liveness probe. Used by `wait-on` during dev and by the Electron main process to detect an already-running API.
+The schema is in `db/index.js`.
 
-**Response** `200 OK`
-```json
-{ "ok": true }
+## Running the API standalone
+
+The server is plain Express and runs fine without Electron:
+
+```bash
+node api/server.js
 ```
 
----
+Standalone defaults (see the `if (require.main === module)` block at the bottom of `api/server.js`):
 
-### `GET /api/hello`
+| Env var | Default | Purpose |
+|---|---|---|
+| `PORT` | `4100` | HTTP port. |
+| `EVC_API_TOKEN` | `dev-token` | The secret required in `x-evc-token` on every `/api/*` call. |
+| `EVC_DEV_ORIGIN` | `http://localhost:3000` | The single origin allowed by CORS (for browser clients). |
+| `EVC_DB_PATH` | (see below) | Override the SQLite file location. |
 
-Returns the latest greeting stored in SQLite. Seeded with `"Hello World"` on first run.
+Database file location (`db/index.js → dbFilePath()`), in priority order:
 
-**Response** `200 OK`
-```json
-{
-  "message": "Hello World",
-  "createdAt": "2026-11-19 15:22:01"
-}
-```
+1. `EVC_DB_PATH` env var
+2. `ELECTRON_USER_DATA/emoryvalley.db` (set by the Electron main process)
+3. `db/emoryvalley.db` in the repo (standalone/dev default)
 
----
+The server is also embeddable: `require("./api/server.js").createApp({ token, staticDir, allowOrigin })` returns the Express app — this is how Electron runs it on a random port with a per-launch token.
 
-### `GET /api/greetings`
+### Security constraints if you move it off 127.0.0.1
 
-Returns all greetings, newest first.
+The current model assumes a local, single-user machine. If you bind to a network interface or expose the API remotely, know that:
 
-**Response** `200 OK`
-```json
-{
-  "greetings": [
-    { "id": 2, "message": "Hi Windows!", "createdAt": "2026-11-19 15:30:00" },
-    { "id": 1, "message": "Hello World", "createdAt": "2026-11-19 15:22:01" }
-  ]
-}
-```
+- **Token auth is the only gate** — a static shared secret, no user accounts, no TLS termination, no rate limiting. Anyone with the token has full read/write access to all data, including `/api/admin/clear`.
+- **The Host header check** (`api/server.js`) only accepts `127.0.0.1`, `localhost`, `[::1]` — remote clients will get `421` until you extend this list (this is the DNS-rebinding defense, so relax it deliberately).
+- **CORS is single-origin** (`EVC_DEV_ORIGIN`); browsers on other origins will be blocked even with the token.
+- The database is an unencrypted SQLite file; backups are written next to it before every import, undo and clear (last 10 kept).
 
----
-
-### `POST /api/greetings`
-
-Insert a new greeting into SQLite.
-
-**Request body** `application/json`
-```json
-{ "message": "Hi Windows!" }
-```
-
-**Response** `201 Created`
-```json
-{ "id": 2, "message": "Hi Windows!" }
-```
-
-**Errors**
-- `400` — missing/empty `message` → `{ "error": "message is required" }`
-- `500` — internal error → `{ "error": "internal error" }`
-
-## Database
-
-See `db/index.js`. SQLite file location:
-- Packaged app: OS user-data dir (Windows: `%APPDATA%\EmoryValley\emoryvalley.db`).
-- Dev standalone: `./db/emoryvalley.db`.
-
-Schema:
-```sql
-CREATE TABLE greetings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  message TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-```
+All PHI-handling caveats in the root README's security model apply double once the API leaves the laptop.
