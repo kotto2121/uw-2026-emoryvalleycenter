@@ -33,11 +33,9 @@ Document API routes, standalone deployment, and frontend in READMEs
 Verified api/README.md against api/server.js and added the six missing routes (imports/analyze, imports/:uploadId/commit, programs/:key/columns CRUD). Added a "Running the API standalone" section documenting env vars (PORT, EVC_API_TOKEN, EVC_DEV_ORIGIN, EVC_DB_PATH), DB file location precedence, createApp embedding, and security caveats for moving off 127.0.0.1. Wrote app/README.md covering all nine pages, API wiring via window.evc with dev fallback, dev workflow, static export/build integration, and styling. Linked both docs from the root README.
 
 ```sigil
-ses_2887673b · Document API routes,
- ▒▒▒▒▒░░░░░  README.md ██░░░░
- ▒▒▒▒▒░░░░░  README.md ██░░░░
- ▒▒▒▒▒░░░░░  README.md ██░░░░
- shape: ▒S▓▓▒T▓▓▒T
- tools: files.read×13 files.edit×4 explore×3 tasks.done×2 e…
- tasks: ██████████ 2/2
+ses_2887673b · Remove dangling sche
+ ▒▒▒▒▒░░░░░  chatgpt-prompt.md ██████
+ shape: ▒▒▒S▒▒▒T▒░
+ tools: explore×3 files.edit×2 episode.finish×1 episode.pre…
+ tasks: ██████████ 1/1
 ```
