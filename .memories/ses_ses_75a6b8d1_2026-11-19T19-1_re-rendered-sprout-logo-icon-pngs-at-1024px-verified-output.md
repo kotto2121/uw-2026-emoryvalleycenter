@@ -32,9 +32,9 @@ Re-rendered sprout logo icon PNGs at 1024px; verified output
 Re-ran the headless Electron renderer (.output/tmp/render-icon.sh) writing fresh 1024×1024 PNGs to build/icon.png and electron/assets/icon.png. Vision-verified build/icon.png shows the sprout-in-a-ring mark in brand colors (dark green ring/stem, medium green leaf, cream background).
 
 ```sigil
-ses_75a6b8d1 · Re-rendered sprout l
- ▒▒▒▒▒░░░░░  render-icon.sh ██████
- shape: ▒▒US▒▒TT▒░
- tools: search×2 run.script×2 tasks.done×2 episode.finish×1…
+ses_75a6b8d1 · Set macOS dock icon 
+ ▒▒▒▒▒░░░░░  main.js ██████
+ shape: ▒▓▒▒▒S▒▒T▒
+ tools: explore×5 search×2 files.read×2 tasks.done×2 episod…
  tasks: ██████████ 2/2
 ```

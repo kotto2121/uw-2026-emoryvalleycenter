@@ -118,7 +118,11 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
   app.post("/api/imports/analyze", raw, h(async (req, res) => {
     await db.getDb();
     const mappings = mappingsFor();
-    const result = await readIncidentWorkbook(req.body, { mappings, require: false });
+    // headerRow query param: the UI's orientation step ("this row is the
+    // header") re-uploads the same file with the picked row; the parser
+    // then skips its scan and maps THAT row directly.
+    const headerRow = Number(req.query.headerRow) > 0 ? Number(req.query.headerRow) : null;
+    const result = await readIncidentWorkbook(req.body, { mappings, require: false, headerRow });
     const { uploadId } = uploads.hold({ filename: filenameOf(req), buffer: req.body, result });
     res.json({
       uploadId,
@@ -127,6 +131,9 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
       warnings: result.warnings,
       unknownHeaders: result.unknownHeaders,
       missingRequired: result.missingRequired,
+      confidence: result.confidence,
+      headerRow: result.headerRow ?? null,
+      preview: result.preview ?? null,
       knownFields: knownFieldNames(),
       requiredFields: REQUIRED,
     });
@@ -139,6 +146,9 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
 
     // decisions: [{ header, action: 'map'|'new'|'ignore', field?, remember? }]
     const decisions = Array.isArray(req.body?.decisions) ? req.body.decisions : [];
+    // headerRow: the row the user picked during orientation (confidence 'none'
+    // files). The parser then skips its scan and maps THAT row directly.
+    const headerRow = Number(req.body?.headerRow) > 0 ? Number(req.body.headerRow) : null;
     const extraByField = {};   // field -> header(s) accepted as extra columns
     const remember = [];       // mappings to persist for next time
 
@@ -167,7 +177,7 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
     );
     let result;
     try {
-      result = await readIncidentWorkbook(held.buffer, { mappings, require: false });
+      result = await readIncidentWorkbook(held.buffer, { mappings, require: false, headerRow });
     } catch (err) {
       return res.status(422).json({ error: err.message });
     }

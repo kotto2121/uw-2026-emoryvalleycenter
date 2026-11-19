@@ -110,10 +110,24 @@ async function readIncidentWorkbook(buffer, opts = {}) {
   const HEADER_LOOKUP = buildLookup(mappings || FIELDS);
   const knownFields = new Set(HEADER_LOOKUP.values());
 
+  // Pass 1: scan the first 15 rows of every sheet, tracking the best
+  // candidate header row (most alias hits). >=3 hits is a confident match;
+  // 1-2 hits is a tentative one we still hand to the review UI rather than
+  // rejecting. Zero hits anywhere -> confidence 'none'.
+  // opts.headerRow overrides the scan entirely: the review UI's orientation
+  // step ("this row is the header") re-parses through this path.
+  let best = null; // { ws, headerRow, map, hits }
+  if (opts.headerRow) {
+    const ws = wb.worksheets[0];
+    const m = {};
+    ws.getRow(opts.headerRow).eachCell({ includeEmpty: false }, (cell, col) => {
+      const field = HEADER_LOOKUP.get(squash(cellText(cell.value)));
+      if (field && !Object.values(m).includes(field)) m[col] = field;
+    });
+    best = { ws, headerRow: opts.headerRow, map: m, hits: Object.keys(m).length };
+  } else {
   for (const ws of wb.worksheets) {
-    // Find the header row among the first 15 rows.
-    let headerRow = null;
-    let map = null;
+    let confident = false;
     for (let r = 1; r <= Math.min(15, ws.rowCount); r++) {
       const row = ws.getRow(r);
       const m = {};
@@ -125,77 +139,107 @@ async function readIncidentWorkbook(buffer, opts = {}) {
           hits++;
         }
       });
+      if (hits > (best ? best.hits : 0)) best = { ws, headerRow: r, map: m, hits };
       if (hits >= 3) {
-        headerRow = r;
-        map = m;
-        break;
+        confident = true;
+        break; // confident match — stop scanning this sheet
       }
     }
-    if (!map) continue;
-
-    // Required-column check is deferred when requireMissing is false: the
-    // caller (commit step) validates after the user has mapped unknowns.
-    const mapped = new Set(Object.values(map));
-    const missingRequired = REQUIRED.filter((f) => !mapped.has(f));
-    if (missingRequired.length && requireMissing) {
-      throw Object.assign(
-        new Error(`Sheet "${ws.name}" is missing required column(s): ${missingRequired.join(", ")}`),
-        { status: 422 }
-      );
-    }
-
-    // Unknown headers: not mapped to any field — collect with sample values
-    // so the review UI can let the user map / accept / ignore them.
-    const unknownHeaders = [];
-    const unmappedHeaders = [];
-    ws.getRow(headerRow).eachCell({ includeEmpty: false }, (cell, col) => {
-      if (!map[col]) {
-        const header = String(cellText(cell.value) ?? "").trim();
-        if (!header) return;
-        unmappedHeaders.push(header);
-        const samples = [];
-        for (let r = headerRow + 1; r <= Math.min(ws.rowCount, headerRow + 5) && samples.length < 3; r++) {
-          const v = clean(ws.getRow(r).getCell(col).value);
-          if (v !== null) samples.push(v instanceof Date ? parseDate(v) : v);
-        }
-        unknownHeaders.push({ header, samples });
-      }
-    });
-    for (const [field, names] of FIELDS) {
-      if (!mapped.has(field) && knownFields.has(field)) warnings.push(`Column "${names[0]}" not found — left blank.`);
-    }
-
-    const rows = [];
-    let badDates = 0;
-    for (let r = headerRow + 1; r <= ws.rowCount; r++) {
-      const row = ws.getRow(r);
-      const rec = {};
-      let any = false;
-      for (const [col, field] of Object.entries(map)) {
-        const v = clean(row.getCell(Number(col)).value);
-        rec[field] = v;
-        if (v !== null) any = true;
-      }
-      if (!any) continue;
-      const rawDate = rec.event_date;
-      rec.event_date = parseDate(rawDate);
-      if (rawDate && !rec.event_date) badDates++;
-      for (const field of new Set(HEADER_LOOKUP.values())) {
-        if (!(field in rec)) rec[field] = null;
-        if (rec[field] instanceof Date) rec[field] = parseDate(rec[field]);
-      }
-      rows.push(rec);
-    }
-    if (badDates) warnings.push(`${badDates} row(s) had a date that could not be read.`);
-    return { rows, warnings, sheet: ws.name, unmappedHeaders, unknownHeaders, missingRequired };
+    if (confident) break; // don't let a later sheet beat a confident match
+  }
   }
 
-  throw Object.assign(
-    new Error(
-      "Couldn't find the event report columns (e.g. 'Date Of Event', \"Member's Full Name\") in any sheet."
-    ),
-    { status: 422 }
-  );
+  // Raw first-15-rows dump for the review UI (orientation / mapping state).
+  const previewRows = (ws) => {
+    const preview = [];
+    for (let r = 1; r <= Math.min(15, ws.rowCount); r++) {
+      const cells = [];
+      ws.getRow(r).eachCell({ includeEmpty: false }, (cell, col) => {
+        const v = cellText(cell.value);
+        cells[col - 1] = v instanceof Date ? parseDate(v) : v == null ? "" : String(v);
+      });
+      while (cells.length && !cells[cells.length - 1]) cells.pop();
+      preview.push(cells);
+    }
+    return preview;
+  };
+
+  // Nothing recognized in any sheet: confidence 'none'. Return a preview so
+  // the UI can ask the user which row is the header — this is the entry
+  // point to schema discovery, not an error.
+  if (!best) {
+    const ws = wb.worksheets[0];
+    return {
+      rows: [], warnings, sheet: ws.name, unmappedHeaders: [], unknownHeaders: [],
+      missingRequired: [...REQUIRED],
+      confidence: "none", headerRow: null, preview: previewRows(ws),
+    };
+  }
+
+  const { ws, headerRow, map } = best;
+  const tentative = best.hits < 3;
+
+  // Required-column check is deferred when requireMissing is false: the
+  // caller (commit step) validates after the user has mapped unknowns.
+  const mapped = new Set(Object.values(map));
+  const missingRequired = REQUIRED.filter((f) => !mapped.has(f));
+  if (missingRequired.length && requireMissing) {
+    throw Object.assign(
+      new Error(`Sheet "${ws.name}" is missing required column(s): ${missingRequired.join(", ")}`),
+      { status: 422 }
+    );
+  }
+
+  // Unknown headers: not mapped to any field — collect with sample values
+  // so the review UI can let the user map / accept / ignore them.
+  const unknownHeaders = [];
+  const unmappedHeaders = [];
+  ws.getRow(headerRow).eachCell({ includeEmpty: false }, (cell, col) => {
+    if (!map[col]) {
+      const header = String(cellText(cell.value) ?? "").trim();
+      if (!header) return;
+      unmappedHeaders.push(header);
+      const samples = [];
+      for (let r = headerRow + 1; r <= Math.min(ws.rowCount, headerRow + 5) && samples.length < 3; r++) {
+        const v = clean(ws.getRow(r).getCell(col).value);
+        if (v !== null) samples.push(v instanceof Date ? parseDate(v) : v);
+      }
+      unknownHeaders.push({ header, samples });
+    }
+  });
+  for (const [field, names] of FIELDS) {
+    if (!mapped.has(field) && knownFields.has(field)) warnings.push(`Column "${names[0]}" not found — left blank.`);
+  }
+  if (tentative) warnings.push("This sheet was only partially recognized — confirm the column mapping in the review step.");
+
+  const rows = [];
+  let badDates = 0;
+  for (let r = headerRow + 1; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const rec = {};
+    let any = false;
+    for (const [col, field] of Object.entries(map)) {
+      const v = clean(row.getCell(Number(col)).value);
+      rec[field] = v;
+      if (v !== null) any = true;
+    }
+    if (!any) continue;
+    const rawDate = rec.event_date;
+    rec.event_date = parseDate(rawDate);
+    if (rawDate && !rec.event_date) badDates++;
+    for (const field of new Set(HEADER_LOOKUP.values())) {
+      if (!(field in rec)) rec[field] = null;
+      if (rec[field] instanceof Date) rec[field] = parseDate(rec[field]);
+    }
+    rows.push(rec);
+  }
+  if (badDates) warnings.push(`${badDates} row(s) had a date that could not be read.`);
+  return {
+    rows, warnings, sheet: ws.name, unmappedHeaders, unknownHeaders, missingRequired,
+    confidence: tentative ? "partial" : "full",
+    headerRow,
+    preview: previewRows(ws),
+  };
 }
 
 module.exports = { readIncidentWorkbook, parseDate, FIELDS, REQUIRED, buildLookup, squash };

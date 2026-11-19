@@ -162,7 +162,15 @@ function RosterPreview({ preview, file, onDone, onCancel }) {
   );
 }
 
-function IncidentReview({ analysis, file, onDone, onCancel }) {
+function IncidentReview({ analysis, file, onReanalyze, onDone, onCancel }) {
+  // Three states driven by the analyze result:
+  //   'full'    -> confirm screen, all columns recognized
+  //   'partial' -> unknown-columns mapping UI (+ blocking required fields)
+  //   'none'    -> preview grid; user clicks the header row, re-analyze
+  //                turns this same panel into the 'partial' mapping state
+  const oriented = analysis.confidence === "none" && !analysis.headerRow;
+  const [pickedRow, setPickedRow] = useState(null); // 1-based row user chose
+  const [orienting, setOrienting] = useState(false);
   // decisions: header -> { action: 'map'|'new'|'ignore', field, remember }
   const [decisions, setDecisions] = useState(() =>
     Object.fromEntries((analysis.unknownHeaders || []).map((u) => [u.header, { action: "ignore", field: "", remember: true }]))
@@ -170,11 +178,23 @@ function IncidentReview({ analysis, file, onDone, onCancel }) {
   const [busy, setBusy] = useState(false);
   const set = (header, patch) => setDecisions((d) => ({ ...d, [header]: { ...d[header], ...patch } }));
 
+  async function orient(rowNum) {
+    setOrienting(true);
+    try {
+      // Re-upload the same file; the parser maps the picked row as the header.
+      const reanalysis = await api.upload(`/api/imports/analyze?headerRow=${rowNum}`, file);
+      onReanalyze(reanalysis);
+    } catch (e) {
+      toast(e.message, "bad");
+      setOrienting(false);
+    }
+  }
+
   async function commit() {
     setBusy(true);
     try {
       const payload = (analysis.unknownHeaders || []).map((u) => ({ header: u.header, ...decisions[u.header] }));
-      const r = await api.post(`/api/imports/${analysis.uploadId}/commit`, { decisions: payload });
+      const r = await api.post(`/api/imports/${analysis.uploadId}/commit`, { decisions: payload, headerRow: analysis.headerRow });
       onDone(r);
     } catch (e) {
       toast(e.message, "bad");
@@ -185,6 +205,39 @@ function IncidentReview({ analysis, file, onDone, onCancel }) {
 
   function decisionsFor(field) {
     return (analysis.unknownHeaders || []).filter((u) => decisions[u.header]?.action === "map" && decisions[u.header]?.field === field);
+  }
+
+  // ---- state: none — orientation grid ----
+  if (oriented) {
+    const preview = analysis.preview || [];
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 14 }}>
+        <Callout tone="warn" icon="sparkle" title="We don't recognize this layout yet.">
+          This file doesn&rsquo;t match the usual PHS column names. Click the row that contains the column headers below — once you do, you can tell us what each column means and it will be remembered for future files.
+        </Callout>
+        <div className="table-wrap" style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 8, maxHeight: 420, overflow: "auto" }}>
+          <table className="tbl">
+            <thead><tr><th style={{ width: 46 }}>Header?</th><th>#</th>{(preview[0] || []).map((_, i) => <th key={i}>{String.fromCharCode(65 + i)}</th>)}</tr></thead>
+            <tbody>
+              {preview.map((cells, ri) => (
+                <tr key={ri} onClick={() => setPickedRow(ri + 1)}
+                  style={{ cursor: "pointer", background: pickedRow === ri + 1 ? "rgba(59,130,246,.12)" : undefined }}>
+                  <td><input type="radio" checked={pickedRow === ri + 1} onChange={() => setPickedRow(ri + 1)} /></td>
+                  <td className="muted">{ri + 1}</td>
+                  {cells.map((c, ci) => <td key={ci} className="clip">{c === "" ? <span className="muted">—</span> : String(c)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" icon="check" busy={orienting} disabled={!pickedRow} onClick={() => orient(pickedRow)}>
+            Use row {pickedRow || "…"} as the header
+          </Button>
+        </div>
+      </motion.div>
+    );
   }
 
   return (
@@ -276,7 +329,7 @@ export default function ImportCenter() {
     setIncReview(null);
     try {
       const analysis = await api.upload("/api/imports/analyze", file);
-      if (analysis.unknownHeaders?.length) {
+      if (analysis.unknownHeaders?.length || analysis.confidence !== "full") {
         setIncReview({ analysis, file });
         return;
       }
@@ -326,6 +379,7 @@ export default function ImportCenter() {
           <Dropzone accept=".xlsx" icon="database" title="Drop the Excel export here" hint="or click to browse · .xlsx" busy={incBusy} onFile={importIncidents} />
           {incReview && <IncidentReview analysis={incReview.analysis} file={incReview.file}
             onCancel={() => setIncReview(null)}
+            onReanalyze={(reanalysis) => setIncReview({ analysis: reanalysis, file: incReview.file })}
             onDone={async (r) => { setIncReview(null); setIncResult(r); await refresh(); toast(`Imported ${fmt(r.inserted)} event records.`); }} />}
           <AnimatePresence>{incResult && <IncidentResult r={incResult} />}</AnimatePresence>
         </Card>
