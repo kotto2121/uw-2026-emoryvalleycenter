@@ -18,7 +18,7 @@ const express = require("express");
 const db = require("../db");
 const { resolveReview } = require("../db/people");
 const { readIncidentWorkbook } = require("./lib/incidents-xlsx");
-const { readDocx, guessRoster } = require("./lib/docx-tables");
+const { readDocx, guessRoster, tableEntries } = require("./lib/docx-tables");
 const { importIncidents, importRoster, deleteBatch } = require("./lib/importer");
 const { generateDemoFiles } = require("./lib/demo");
 const { bhRosterWorkbook } = require("./lib/reports");
@@ -109,21 +109,11 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
   app.post("/api/import/roster/commit", h(async (req, res) => {
     await db.getDb();
     const { month, filename, tables } = req.body || {};
-    // tables: [{ service: 'OP'|'PSR'|null, nameCol, serviceCol, header, rows }]
+    // tables: the (possibly user-edited) preview tables: { service, nameCols, header, rows, staff, columnStaff, heading }
     const entries = [];
     for (const t of tables || []) {
-      for (const row of t.rows || []) {
-        const name = row[t.nameCol];
-        let service = t.service;
-        if (t.serviceCol >= 0 && !service) {
-          const v = String(row[t.serviceCol] || "");
-          service = /psycho|psr/i.test(v) ? "PSR" : /out|\bop\b/i.test(v) ? "OP" : null;
-        }
-        if (!service || !name) continue;
-        const extra = {};
-        (t.header || []).forEach((hd, i) => { if (i !== t.nameCol) extra[hd] = row[i] ?? ""; });
-        entries.push({ name, service, extra });
-      }
+      if (!["OP", "PSR"].includes(t.service)) continue;
+      for (const e of tableEntries(t)) entries.push({ name: e.name, service: t.service, extra: e.extra });
     }
     if (!entries.length) return res.status(400).json({ error: "Nothing to import — mark at least one table as OP or PSR." });
     db.backup("pre-import");
@@ -194,12 +184,9 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
       const ros = files.rosters[i];
       const { blocks } = await readDocx(ros.buffer);
       const guess = guessRoster(blocks, ros.filename);
-      const entries = guess.tables.flatMap((t) =>
-        t.rows.map((row) => ({
-          name: row[t.nameCol],
-          service: t.service,
-          extra: Object.fromEntries(t.header.map((hd, j) => [hd, row[j]]).filter((_, j) => j !== t.nameCol)),
-        })));
+      const entries = guess.tables
+        .filter((t) => t.service)
+        .flatMap((t) => tableEntries(t).map((e) => ({ name: e.name, service: t.service, extra: e.extra })));
       results.push(importRoster({ entries, month: guess.month || ros.month, filename: ros.filename, isDemo: true }));
     }
     db.tx(() => db.run("UPDATE import_batch SET is_demo = 1"));

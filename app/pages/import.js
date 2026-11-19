@@ -48,17 +48,33 @@ function IncidentResult({ r }) {
   );
 }
 
+const SERVICE_LABEL = { OP: "Outpatient / Individual Therapy (OP)", PSR: "Psychosocial Rehab (PSR)" };
+
+/** Count clients the same way the server will (api/lib/docx-tables.js tableEntries). */
+function countClients(t) {
+  let n = 0;
+  t.rows.forEach((_, r) => {
+    if (t.skipRow?.[r] && !t.nameCols.some((c) => t.nameLike?.[r]?.[c])) return;
+    for (const c of t.nameCols) if (t.nameLike?.[r]?.[c]) n++;
+  });
+  return n;
+}
+
 function RosterPreview({ preview, file, onDone, onCancel }) {
   const [month, setMonth] = useState(preview.month || "");
   const [tables, setTables] = useState(preview.tables);
   const [busy, setBusy] = useState(false);
   const update = (i, patch) => setTables((ts) => ts.map((t, j) => (j === i ? { ...t, ...patch } : t)));
-  const counted = tables.filter((t) => t.service || t.serviceCol >= 0).reduce((s, t) => s + t.rowCount, 0);
+  const counts = tables.map(countClients);
+  const included = tables.reduce((s, t, i) => s + (t.service ? counts[i] : 0), 0);
+  const byService = { OP: 0, PSR: 0 };
+  tables.forEach((t, i) => { if (t.service) byService[t.service] += counts[i]; });
 
   async function commit() {
     setBusy(true);
     try {
-      const r = await api.post("/api/import/roster/commit", { month, filename: file.name, tables });
+      const payload = tables.map(({ nameLike, skipRow, ...t }) => t);
+      const r = await api.post("/api/import/roster/commit", { month, filename: file.name, tables: payload });
       onDone(r);
     } catch (e) {
       toast(e.message, "bad");
@@ -70,58 +86,77 @@ function RosterPreview({ preview, file, onDone, onCancel }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 14 }}>
       <Callout tone="info" icon="sparkle" title="Check how we read this document.">
-        We found {tables.length} table{tables.length === 1 ? "" : "s"} in <strong>{file.name}</strong>. Confirm the month, which service each table lists, and which column holds the person&rsquo;s name.
+        We found {tables.length} caseload table{tables.length === 1 ? "" : "s"} in <strong>{file.name}</strong>. Service and staff come from the heading above each table; schedule rows (days/times, “Total:”) are skipped automatically. Fix anything that looks wrong before importing.
       </Callout>
       <div className="mapping">
         <label className="select"><span className="select-label">Report month</span>
           <input className="input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
         </label>
+        <span className="muted" style={{ fontSize: 12.5 }}>{preview.month ? "Detected from the “Updated” date — change it if this roster is for a different month." : "No date found in the document — please choose the month."}</span>
       </div>
-      {tables.map((t, i) => (
-        <div key={i} style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <div>
-              <strong>Table {i + 1}</strong> <span className="muted">· {t.rowCount} rows</span>
-              {t.context && <div className="muted" style={{ fontSize: 12 }}>Heading: “{t.context.split(" · ").pop()}”</div>}
-            </div>
-            <div className="mapping" style={{ marginTop: 0 }}>
+      {tables.map((t, i) => {
+        const n = counts[i];
+        const mismatch = t.expectedTotal !== null && t.expectedTotal !== undefined && t.expectedTotal !== n;
+        return (
+          <div key={i} style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)", opacity: t.service ? 1 : 0.72 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <div style={{ minWidth: 0 }}>
+                <strong>{t.heading || `Table ${i + 1}`}</strong>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+                  <span className="tag">{fmt(n)} client{n === 1 ? "" : "s"} found</span>
+                  {t.expectedTotal !== null && t.expectedTotal !== undefined && (
+                    mismatch
+                      ? <span className="tag warn"><Icon name="alert" size={11} /> heading says {t.expectedTotal}</span>
+                      : <span className="tag good"><Icon name="check" size={11} /> matches heading total</span>
+                  )}
+                  {(t.staff || t.columnStaff?.some(Boolean)) && <span className="tag info">Staff: {[t.staff, ...(t.columnStaff || [])].filter(Boolean).filter((v, k, a) => a.indexOf(v) === k).join(", ")}</span>}
+                  {t.isAdditional && !t.service && <span className="tag warn">Service not stated — ask before including</span>}
+                </div>
+              </div>
               <label className="select"><span className="select-label">Service</span>
-                <select value={t.service || (t.serviceCol >= 0 ? "col" : "")} onChange={(e) => {
-                  const v = e.target.value;
-                  const detected = preview.tables[i].serviceCol;
-                  update(i, v === "col" ? { service: null, serviceCol: detected } : { service: v || null, serviceCol: -1 });
-                }}>
-                  <option value="">Ignore this table</option>
-                  <option value="OP">Outpatient (OP)</option>
-                  <option value="PSR">Psychosocial Rehab (PSR)</option>
-                  {preview.tables[i].serviceCol >= 0 && <option value="col">Per row (column “{t.header[preview.tables[i].serviceCol]}”)</option>}
-                </select>
-                <Icon name="chevronDown" size={14} />
-              </label>
-              <label className="select"><span className="select-label">Name column</span>
-                <select value={t.nameCol} onChange={(e) => update(i, { nameCol: Number(e.target.value) })}>
-                  {t.header.map((h, c) => <option key={c} value={c}>{h || `Column ${c + 1}`}</option>)}
+                <select value={t.service || ""} onChange={(e) => update(i, { service: e.target.value || null })}>
+                  <option value="">Don’t import this table</option>
+                  <option value="OP">{SERVICE_LABEL.OP}</option>
+                  <option value="PSR">{SERVICE_LABEL.PSR}</option>
                 </select>
                 <Icon name="chevronDown" size={14} />
               </label>
             </div>
+            <div className="mapping">
+              <span className="select-label">Name column{t.header.length > 1 ? "s" : ""}:</span>
+              <div className="chips">
+                {t.header.map((h, c) => (
+                  <button key={c} className={`chip${t.nameCols.includes(c) ? " on" : ""}`}
+                    onClick={() => update(i, { nameCols: t.nameCols.includes(c) ? t.nameCols.filter((x) => x !== c) : [...t.nameCols, c].sort() })}>
+                    {h || `Column ${c + 1}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="table-preview">
+              <table className="tbl">
+                <thead><tr>{t.header.map((h, c) => <th key={c} className={t.nameCols.includes(c) ? "namecol" : ""}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {t.rows.slice(0, 5).map((r, ri) => (
+                    <tr key={ri} style={t.skipRow?.[ri] ? { opacity: 0.45, textDecoration: "line-through" } : undefined} title={t.skipRow?.[ri] ? "Skipped: schedule / summary / blank row" : undefined}>
+                      {t.header.map((_, c) => <td key={c} className={t.nameCols.includes(c) ? "namecol" : ""}>{r[c]}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {t.rowCount > 5 && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>+ {t.rowCount - 5} more rows</div>}
           </div>
-          <div className="table-preview">
-            <table className="tbl">
-              <thead><tr>{t.header.map((h, c) => <th key={c} className={c === t.nameCol ? "namecol" : ""}>{h}</th>)}</tr></thead>
-              <tbody>
-                {t.rows.slice(0, 4).map((r, ri) => <tr key={ri}>{t.header.map((_, c) => <td key={c} className={c === t.nameCol ? "namecol" : ""}>{r[c]}</td>)}</tr>)}
-              </tbody>
-            </table>
-          </div>
-          {t.rowCount > 4 && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>+ {t.rowCount - 4} more rows</div>}
+        );
+      })}
+      <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", marginTop: 18, flexWrap: "wrap" }}>
+        <span className="muted" style={{ fontSize: 12.5 }}>{fmt(byService.PSR)} PSR and {fmt(byService.OP)} OP entries (people on several caseloads are counted once per service after import).</span>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" icon="check" busy={busy} disabled={!/^\d{4}-\d{2}$/.test(month) || !included} onClick={commit}>
+            Import {fmt(included)} entries{month ? ` for ${monthLabel(month)}` : ""}
+          </Button>
         </div>
-      ))}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" icon="check" busy={busy} disabled={!/^\d{4}-\d{2}$/.test(month) || !counted} onClick={commit}>
-          Import {fmt(counted)} roster rows{month ? ` for ${monthLabel(month)}` : ""}
-        </Button>
       </div>
     </motion.div>
   );

@@ -10,14 +10,14 @@
  *   - Event counts are records; people counts use the person registry.
  */
 const db = require("../../db");
-const { splitOptions, INTERVENTION_OPTIONS } = require("../../db/classify");
+const { splitOptions, INTERVENTION_OPTIONS, BEHAVIORAL_OPTIONS, TIER_OPTIONS } = require("../../db/classify");
 
 const FLAGS = {
   f_hospitalization: "Hospitalizations",
   f_er: "ER visits",
   f_911: "911 calls",
   f_police: "Police involvement",
-  f_crisis: "Crisis calls",
+  f_crisis: "Crisis events",
   f_property_damage: "Property damage",
   f_self_injury: "Self-injury",
 };
@@ -125,6 +125,9 @@ function incidentsSummary(filters = {}) {
             SUM(CASE WHEN is_reportable = 1 THEN 1 ELSE 0 END) AS reportable,
             SUM(CASE WHEN injury_level = 'Serious Injury' THEN 1 ELSE 0 END) AS serious,
             SUM(CASE WHEN event_interventions IS NOT NULL THEN 1 ELSE 0 END) AS with_intervention,
+            SUM(CASE WHEN behavioral_psychiatric_events IS NOT NULL THEN 1 ELSE 0 END) AS with_behavioral,
+            SUM(CASE WHEN tier_1_events IS NOT NULL THEN 1 ELSE 0 END) AS tier1,
+            SUM(CASE WHEN tier_2_events IS NOT NULL THEN 1 ELSE 0 END) AS tier2,
             ${flagSql}
      FROM event_report WHERE ${where.sql}`, where.params);
   const byMonth = db.all(
@@ -134,13 +137,33 @@ function incidentsSummary(filters = {}) {
             COUNT(DISTINCT person_id) AS people
      FROM event_report WHERE ${where.sql} GROUP BY 1 ORDER BY 1`, where.params);
 
-  const interventionCounts = new Map();
-  for (const { event_interventions: t } of db.all(
-    `SELECT event_interventions FROM event_report WHERE ${where.sql} AND event_interventions IS NOT NULL`, where.params)) {
-    const { options, unparsed } = splitOptions(t, INTERVENTION_OPTIONS);
-    for (const o of options) interventionCounts.set(o, (interventionCounts.get(o) || 0) + 1);
-    if (unparsed) interventionCounts.set("Unrecognized option", (interventionCounts.get("Unrecognized option") || 0) + 1);
+  // Multi-select fields: count each option once per event.
+  function optionCounts(column, dictionary) {
+    const counts = new Map();
+    for (const r of db.all(`SELECT ${column} AS t FROM event_report WHERE ${where.sql} AND ${column} IS NOT NULL`, where.params)) {
+      const { options, unparsed } = splitOptions(r.t, dictionary);
+      for (const o of options) counts.set(o, (counts.get(o) || 0) + 1);
+      if (unparsed) counts.set("Unrecognized option", (counts.get("Unrecognized option") || 0) + 1);
+    }
+    return [...counts.entries()].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n);
   }
+  const allegations = new Map();
+  for (const col of ["tier_1_events", "tier_2_events"]) {
+    for (const o of optionCounts(col, TIER_OPTIONS)) {
+      const key = `${o.label}`;
+      const cur = allegations.get(key) || { label: key, tier1: 0, tier2: 0, n: 0 };
+      cur[col === "tier_1_events" ? "tier1" : "tier2"] += o.n;
+      cur.n += o.n;
+      allegations.set(key, cur);
+    }
+  }
+  const otherCategories = db.all(
+    `SELECT other_event_types AS label, COUNT(*) AS n FROM event_report
+     WHERE ${where.sql} AND other_event_types IS NOT NULL AND LENGTH(other_event_types) <= 60
+     GROUP BY 1 HAVING COUNT(*) >= 3 ORDER BY n DESC LIMIT 8`, where.params);
+  const otherTotal = db.get(`SELECT COUNT(*) AS n FROM event_report WHERE ${where.sql} AND other_event_types IS NOT NULL`, where.params).n;
+  const otherListed = otherCategories.reduce((s, r) => s + r.n, 0);
+  if (otherTotal > otherListed) otherCategories.push({ label: "Narrative / other entries", n: otherTotal - otherListed });
 
   const dq = db.get(
     `SELECT COUNT(*) AS rows,
@@ -160,7 +183,10 @@ function incidentsSummary(filters = {}) {
     byInjury: groupCount("injury_level", where),
     byReportability: groupCount("reportability_status", where),
     topSites: groupCount("site_home", where, { limit: 10 }).filter((r) => r.label !== "All other"),
-    interventions: [...interventionCounts.entries()].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n),
+    interventions: optionCounts("event_interventions", INTERVENTION_OPTIONS),
+    behavioral: optionCounts("behavioral_psychiatric_events", BEHAVIORAL_OPTIONS),
+    allegations: [...allegations.values()].sort((a, b) => b.n - a.n),
+    otherCategories,
     flags: FLAGS,
     dataQuality: dq,
   };

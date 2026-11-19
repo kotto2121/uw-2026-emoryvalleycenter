@@ -87,9 +87,19 @@ The logo is a **placeholder** (a sprout in a ring). To apply EVC's brand:
 - Update the color tokens at the top of `app/styles/globals.css` and in `electron/splash.html`.
 - The chart colors (`SERIES` in `app/components/charts.js`) were checked for color-blind safety. Re-validate them if you change them.
 
+## What we learned from EVC's real files (via ChatGPT, structure only)
+
+The outputs are in `docs/chatgpt-outputs/`.
+
+- **BH roster (Word):** nine tables. PSR tables are headed "<staff> — Total: N (Psychosocial Rehabilitation-PSR)" and OP tables "Therapist: <staff> — Total: N (Individual Therapy)". They're followed by a 1:1 PSR table and an "Additional Caseload" table. Most tables have no header row, and names are in the 3rd cell, written "First Last". The parser is in `api/lib/docx-tables.js`; it checks each table's count against the heading's "Total: N".
+- **PHS export (Excel):** names are 100% "Last, First". There is no client ID or date of birth in either file. Real option labels are now in `db/classify.js`.
+- **Name overlap (6 months of events vs one roster):** 35 normalized matches and 6 nickname/prefix matches out of 103 roster names. 62 roster clients had no events at all in those months, which is plausible. There were no ambiguous matches.
+
 ## Next steps
 
-- Replace the option dictionaries in `db/classify.js` with PHS's real option list (`docs/chatgpt-prompt.md`, Prompt C).
-- Check the Word importer against the real layout using the fake .docx from Prompt B.
+- Kristen: what does "Additional Caseload" mean (OP, PSR, or something else)? It's skipped by default.
+- Kristen: which month does a roster dated "Updated <date>" represent?
+- Confirm the "inferred" PHS labels on the actual form (see `Option_label_verification.json`).
+- Property damage has no PHS option, so the count comes from narrative text only. Decide whether EVC should track it differently.
 - Ask whether PHS can export an Individual ID; if so, match on it before names.
 - Next program importers: Rolling Census (PHS demographics), then Employment Services.

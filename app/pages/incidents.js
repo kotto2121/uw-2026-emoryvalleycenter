@@ -10,7 +10,7 @@ import { dateLabel, fmt, monthLabel, pct, sameName } from "../lib/format";
 
 const FLAG_CHIPS = [
   ["", "All"], ["is_reportable", "Reportable"], ["f_911", "911"], ["f_er", "ER visit"], ["f_hospitalization", "Hospitalization"],
-  ["f_police", "Police"], ["f_crisis", "Crisis"], ["f_property_damage", "Property damage"], ["f_self_injury", "Self-injury"],
+  ["f_police", "Police / law enforcement"], ["f_crisis", "Crisis"], ["f_property_damage", "Property damage"], ["f_self_injury", "Self-injury"],
 ];
 
 const FIELD_LABELS = [
@@ -108,6 +108,24 @@ export default function Incidents() {
             </Card>
             <Card title="Interventions" subtitle="Recovered from the combined PHS field; one event can have several" delay={0.15}>
               {s.interventions.length ? <BarList rows={s.interventions} color={SERIES[2]} total={t.with_intervention} /> : <p className="muted">No interventions recorded.</p>}
+            </Card>
+          </div>
+
+          <div className="grid cols-3">
+            <Card title="Behavioral / psychiatric events" subtitle={`${fmt(t.with_behavioral)} events · options recovered from the combined PHS field`} delay={0.05}>
+              {s.behavioral.length ? <BarList rows={s.behavioral} color={SERIES[2]} total={t.with_behavioral}
+                formatLabel={(l) => l.replace(" including in an acute care hospital", "").replace("Reportable Behavior involving physical aggression and/or self-injurious behavior resulting in injury to another person", "Reportable behavior causing injury to another person")} /> : <p className="muted">None recorded.</p>}
+            </Card>
+            <Card title="Abuse, neglect & death (Tier 1 / Tier 2)" subtitle={`${fmt(t.tier1)} Tier 1 · ${fmt(t.tier2)} Tier 2 events`} delay={0.1}>
+              {s.allegations.length ? (
+                <table className="tbl"><thead><tr><th>Allegation</th><th className="num">Tier 1</th><th className="num">Tier 2</th></tr></thead>
+                  <tbody>{s.allegations.map((a) => (
+                    <tr key={a.label}><td>{a.label}</td><td className="num">{fmt(a.tier1)}</td><td className="num">{fmt(a.tier2)}</td></tr>
+                  ))}</tbody></table>
+              ) : <p className="muted">None recorded.</p>}
+            </Card>
+            <Card title="Other event types" subtitle="Short PHS categories; free-text entries grouped" delay={0.15}>
+              <BarList rows={s.otherCategories} color={SERIES[1]} formatLabel={(l) => l.replace(/^Other - /, "")} />
             </Card>
           </div>
 

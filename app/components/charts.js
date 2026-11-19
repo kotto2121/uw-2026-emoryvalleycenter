@@ -130,7 +130,7 @@ export function BarList({ rows = [], total, color = SERIES[0], max, onSelect, fo
   return (
     <div className="barlist">
       {rows.map((r, i) => {
-        const muted = r.label === "(Not recorded)" || r.label === "All other" || r.label === "Unrecognized option";
+        const muted = ["(Not recorded)", "All other", "Unrecognized option", "Narrative / other entries"].includes(r.label);
         return (
           <div className={`barlist-row${onSelect ? " clickable" : ""}`} key={r.label} onClick={onSelect ? () => onSelect(r) : undefined}
             title={`${r.label}: ${fmt(r.n)} (${sum ? ((r.n / sum) * 100).toFixed(1) : 0}%)`}>

@@ -7,10 +7,16 @@
  * observed location / observation / injury-level mixes, ~5% exact duplicate
  * rows, concatenated multi-select fields with no delimiter).
  *
- * It also produces a monthly behavioral-health roster .docx in a GUESSED
- * layout (headings + one table per service), with deliberate name variations
- * ("Last, First", nicknames, typos) so the Review Queue has realistic work.
- * Replace the docx layout once we have a real (redacted) sample.
+ * Category labels and their relative frequencies follow the aggregate counts
+ * ChatGPT extracted from EVC's real 6-month export (docs/chatgpt-outputs/
+ * Prompt_C_event_option_labels.json). PHS writes names "Last, First".
+ *
+ * It also produces the monthly behavioral-health roster .docx in EVC's REAL
+ * layout (docs/chatgpt-outputs/Prompt_A_document_structure.json): staff
+ * headings with "Total: N (service)", header-less [site | frequency | name]
+ * tables with schedule rows mixed in, a 1:1 table and an "Additional
+ * Caseload" table. Names there are "First Last", with a few nicknames/typos so
+ * the Review Queue has realistic work.
  *
  * Output is deterministic (seeded PRNG) so every teammate sees the same demo.
  */
@@ -34,41 +40,58 @@ const NICK = { Robert: "Bobby", William: "Bill", Richard: "Rick", James: "Jim", 
 const SITE_WORDS = ["Maple","Willow","Cedar","Dogwood","Hickory","Magnolia","Laurel","Sycamore","Aspen","Birch","Chestnut","Juniper","Poplar","Redbud","Sassafras","Walnut","Hemlock","Linden","Mulberry","Spruce","Tupelo","Buckeye","Holly"];
 const SITE_KINDS = ["House","Cottage","Residence","Place"];
 
+// Real labels; weights = counts in EVC's 6-month export (aggregate only).
 const OBSERVATION = [
-  ["Witnessed by Provider Staff", 178], ["Discovered by Provider Staff", 44], ["Discovered by Other", 24],
-  ["Discovered by Other Service Provider", 11], ["Witnessed by Therapy Personnel", 6],
-  ["Witnessed by Person Supported/Other Persons Supported", 6], ["Witnessed by Other", 5],
-  ["Discovered by Therapy Personnel", 4], ["Witnessed by Other Service Provider", 4],
+  ["Witnessed by Provider Staff", 1481], ["Discovered by Provider Staff", 263], ["Discovered by Other", 100],
+  ["Witnessed by DIDD/TennCare Staff", 54], ["Witnessed by Other", 35], ["Witnessed by Therapy Personnel", 32],
+  ["Witnessed by Person Supported/Other Persons Supported", 21], ["Discovered by Person Supported/Other Persons Supported", 21],
+  ["Witnessed by Other Service Provider", 12], ["Discovered by DIDD/TennCare Staff", 6], ["Witnessed by Private Citizen", 5],
+  ["Witnessed by Medical Personnel", 4], ["Discovered by Other Service Provider", 4], ["Discovered by Therapy Personnel", 3],
+  ["Discovered by Medical Personnel", 2], ["Discovered by Law Enforcement", 1], ["Witnessed by APS/DCS", 1], ["Discovered by Private Citizen", 1],
 ];
 const LOCATION = [
-  ["Home - Inside", 204], ["Community - Supervised", 42], ["Community - Unsupervised", 19],
-  ["Home - Outside", 18], ["Day Program / Work / School", 8], ["Unknown", 3], ["Vehicle", 2],
+  ["Home - Inside", 1752], ["Community - Supervised", 150], ["Home - Outside", 77], ["Community - Unsupervised", 74],
+  ["Vehicle", 27], ["Day Program / Work / School", 27], ["Unknown", 6],
 ];
-const INJURY = [["No Injury", 206], ["Minor Injury", 26], ["Serious Injury", 5]];
-const OTHER_TYPES = [
-  ["Other - self injurious behaviors", 5], ["Other - fall without injury", 14], ["Other - property damage", 9],
-  ["Other - verbal aggression toward peer", 10], ["Other - refused medication", 8],
-  ["Other - physical aggression toward staff", 9], ["Other - elopement attempt", 5],
-  ["Other - minor vehicle incident (demo narrative)", 3], ["Other - choking episode, resolved with prompting", 3],
-  ["Other - peer to peer altercation", 9], ["Other - medication administered late", 6],
+const INJURY = [["No Injury", 1594], ["Minor Injury", 596], ["Serious Injury", 13]];
+const OTHER_CATEGORIES = [
+  ["Other - self injurious behaviors; disruptive behaviors", 165], ["Falls with injury", 13],
+  ["Minor – Vehicle accident while transporting person", 10], ["Other - Aggression", 9], ["Other - medical", 5],
+];
+// Real exports put free-text narratives in "Other Event Types" (441 of 643 rows). Fake ones:
+const NARRATIVES = [
+  "Other - DEMO: person supported refused evening medication; staff re-offered per plan and notified nurse.",
+  "Other - DEMO: verbal disagreement with housemate at dinner; staff redirected and both calmed within 10 minutes.",
+  "Other - DEMO: person supported left the table abruptly and slammed a door, damaging property (door frame); no injuries.",
+  "Other - DEMO: minor property damage — broke a lamp while upset; staff used de-escalation techniques.",
+  "Other - DEMO: person supported reported stomach pain; staff contacted on-call nurse and monitored.",
+  "Other - DEMO: medication administered 40 minutes late due to pharmacy delivery delay.",
+  "Other - DEMO: attempted to leave the home without staff; returned with staff prompting after 5 minutes.",
+  "Other - DEMO: hit own head with open hand twice; staff blocked and redirected, no visible injury.",
 ];
 const INJURY_TEXT = [
-  "Small abrasion to left knee, first aid applied.", "Bruise noted on right forearm.", "Redness to hand after striking table.",
-  "Scratch on cheek, cleaned and monitored.", "Complained of ankle pain, ice applied.", "No visible injury; monitored for 24 hours.",
-  "Bump on forehead, neuro checks completed.", "Skin tear on elbow, bandaged.",
+  "DEMO: small abrasion to left knee, first aid applied.", "DEMO: bruise noted on right forearm.", "DEMO: redness to hand after striking table.",
+  "DEMO: scratch on cheek, cleaned and monitored.", "DEMO: complained of ankle pain, ice applied.",
+  "DEMO: bump on forehead, neuro checks completed.", "DEMO: skin tear on elbow, bandaged.",
 ];
+// Multi-select combos, written the way PHS exports them (labels glued, no delimiter).
 const INTERVENTION_COMBOS = [
-  ["911 Call", "EMT", "Emergency Room Visit"], ["911 Call", "EMT"], ["Emergency Room Visit"], ["911 Call", "Police Involvement"],
-  ["911 Call", "EMT", "Emergency Room Visit", "Hospital Admission"], ["Mobile Crisis"], ["Police Involvement"], ["First Aid"],
-  ["911 Call", "Mobile Crisis", "Police Involvement"], ["Urgent Care Visit"],
+  [["Emergency Room Visit"], 24], [["911 Call", "EMT", "Emergency Room Visit"], 15], [["Urgent Care Facility"], 8],
+  [["911 Call"], 5], [["911 Call", "EMT"], 5], [["911 Call", "Police"], 5], [["Emergency Room Visit", "X-ray (to rule out fracture)"], 3],
+  [["911 Call", "Police", "Mobile Crisis Services"], 3], [["Police"], 2], [["Urgent Care Facility", "Emergency Room Visit"], 2],
+  [["Mobile Crisis Services"], 1], [["911 Call", "Fire Department", "EMT"], 1], [["Abdominal Thrust/Back Blows/Heimlich Maneuver"], 1],
+  [["Administration of PRN Psychotropic Medication", "Mobile Crisis Services"], 1],
 ];
 const BEHAVIORAL_COMBOS = [
-  ["Physical Aggression", "Property Damage", "Crisis Call"], ["Suicidal Ideation", "Mobile Crisis Assessment"],
-  ["Self Injurious Behavior", "Physical Aggression"], ["Elopement", "Police Involvement"],
-  ["Physical Aggression", "Psychiatric Hospitalization"], ["Property Damage", "Verbal Aggression"],
+  [["Behavioral Crisis requiring crisis intervention"], 7], [["Physical Aggression", "Staff"], 3], [["Physical Aggression", "Housemate"], 2],
+  [["Behavioral Crisis requiring crisis intervention", "Engagement with Law Enforcement"], 4],
+  [["Reportable Behavior involving physical aggression and/or self-injurious behavior resulting in injury to another person", "Staff"], 4],
+  [["Behavioral Crisis requiring crisis intervention", "Psychiatric Admission (for observation) including in an acute care hospital"], 2],
+  [["Suicide Attempt", "Behavioral Crisis requiring crisis intervention"], 2], [["Self-Injurious Behavior"], 1], [["Engagement with Law Enforcement"], 1],
 ];
-const TIER1 = ["Tier 1 - Demo Allegation A", "Tier 1 - Demo Allegation B"];
-const TIER2 = ["Tier 2 - Demo Serious Injury", "Tier 2 - Demo Unplanned Hospitalization"];
+const TIER1 = [["Alleged Physical Abuse", 2], ["Death-Unexpected and/or Unexplained", 2], ["Alleged Emotional/Psychological Abuse", 1], ["Alleged Sexual Abuse", 1], ["Alleged Neglect", 1]];
+const TIER2 = [["Alleged Neglect", 12], ["Alleged Emotional/Psychological Abuse", 3], ["Alleged Physical Abuse", 1]];
+const TOTAL_ROWS = 2500; // rows in the real 6-month export
 
 function weighted(r, table) {
   const total = table.reduce((s, [, w]) => s + w, 0);
@@ -125,42 +148,44 @@ function buildPopulation(r) {
 function incidentRowsForMonth(r, population, month, monthIndex) {
   const [y, m] = month.split("-").map(Number);
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const n = Math.round(351 * (0.9 + monthIndex * 0.035) + (r() - 0.5) * 40);
-  const totalW = population.people.reduce((s, p) => s + p.weight, 0);
-  // ~83 people appear in a typical month: restrict to a monthly active subset.
-  const active = population.people.filter(() => r() < 0.72);
-  const activeW = active.reduce((s, p) => s + p.weight, 0) || totalW;
+  const n = Math.round((TOTAL_ROWS / 6) * (0.9 + monthIndex * 0.035) + (r() - 0.5) * 40);
+  // ~83–100 people appear in a typical month: restrict to a monthly active subset.
+  const active = population.people.filter(() => r() < 0.75);
+  const activeW = active.reduce((s, p) => s + p.weight, 0);
+  const rate = (count) => count / TOTAL_ROWS;
   const rows = [];
   for (let i = 0; i < n; i++) {
     let x = r() * activeW;
     let person = active[0];
     for (const p of active) if ((x -= p.weight) < 0) { person = p; break; }
     const day = 1 + Math.floor(r() * daysInMonth);
-    let name = `${person.first} ${person.last}`;
+    // PHS writes "Last, First" (100% in the real export).
+    let name = `${person.last}, ${person.first}`;
     const v = r();
-    if (person.variant && v < 0.25) name = person.variant;
-    else if (v < 0.06) name = `${person.last}, ${person.first}`;
-    else if (v < 0.1) name = `${person.first} ${person.middle}. ${person.last}`;
-    else if (v < 0.12) name = name.toUpperCase();
+    if (person.variant && v < 0.25) {
+      const parts = person.variant.split(" ");
+      name = `${parts.slice(1).join(" ")}, ${parts[0]}`;
+    } else if (v < 0.05) name = `${person.last}, ${person.first} ${person.middle}.`;
 
+    const other = r() < rate(643) ? (r() < 202 / 643 ? weighted(r, OTHER_CATEGORIES) : pick(r, NARRATIVES)) : "";
+    const level = r() < 2203 / TOTAL_ROWS ? weighted(r, INJURY) : "";
     const row = {
       "Date Of Event": `${pad(m)}/${pad(day)}/${y}`,
       "Member's Full Name": name,
-      "Tier 1 Events": r() < 0.011 ? pick(r, TIER1) : "",
-      "Tier 2 Events": r() < 0.009 ? pick(r, TIER2) : "",
-      "Behavioral/Psychiatric Events": r() < 0.03 ? pick(r, BEHAVIORAL_COMBOS).join("") : "",
+      "Tier 1 Events": r() < rate(7) ? weighted(r, TIER1) : "",
+      "Tier 2 Events": r() < rate(16) ? weighted(r, TIER2) : "",
+      "Behavioral/Psychiatric Events": r() < rate(30) ? weighted(r, BEHAVIORAL_COMBOS).join("") : "",
       "Medical Events": "",
-      "Other Event Types": r() < 0.242 ? weighted(r, OTHER_TYPES) : "",
-      "Non Reportable": r() < 0.088 ? "Reportable" : "Non-Reportable",
+      "Other Event Types": other,
+      "Non Reportable": r() < rate(108) ? "Reportable" : "Non-Reportable",
       "This incident was / By": r() < 0.803 ? weighted(r, OBSERVATION) : "",
       "Event Location": r() < 0.843 ? weighted(r, LOCATION) : "",
-      "Event Interventions": r() < 0.034 ? pick(r, INTERVENTION_COMBOS).join("") : "",
+      "Event Interventions": r() < rate(90) ? weighted(r, INTERVENTION_COMBOS).join("") : "",
       "Site/Home": r() < 0.85 ? person.site : pick(r, population.sites),
       "Injury Description": "",
-      "Level of Injury": r() < 0.675 ? weighted(r, INJURY) : "",
+      "Level of Injury": level,
     };
-    if (row["Level of Injury"] && row["Level of Injury"] !== "No Injury") row["Injury Description"] = pick(r, INJURY_TEXT);
-    else if (r() < 0.25) row["Injury Description"] = "No injury observed.";
+    if (level && level !== "No Injury") row["Injury Description"] = pick(r, INJURY_TEXT);
     rows.push(row);
   }
   // ~5.4% exact duplicate rows, as in the real export.
@@ -207,32 +232,34 @@ async function makeDocx(bodyXml) {
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
-const CLINICIANS = ["Demo Clinician A", "Demo Clinician B", "Demo Clinician C", "Demo Clinician D"];
+const PSR_STAFF = ["Demo Clinician A", "Demo Clinician B", "Demo Clinician C"];
+const OP_STAFF = ["Demo Therapist D", "Demo Therapist E"];
+const FREQS = ["Weekly", "Bi-weekly", "1M", "2x weekly"];
+const SCHEDULES = ["Mon, Wed, Fri (9:00AM-11:00AM)", "Tue, Thu (1:00PM-3:00PM)"];
 
+/** Who is on which caseload this month (churn grows the roster over time). */
 function rosterForMonth(r, population, month, monthIndex) {
-  const roster = { OP: [], PSR: [] };
+  const roster = { PSR: [], OP: [], oneToOne: [], additional: [] };
   population.people.forEach((p, i) => {
     if (!p.bh) return;
-    // a little churn month to month
-    if (r() < 0.12 - monthIndex * 0.005) return;
-    const services = p.bh === "both" ? ["OP", "PSR"] : [p.bh];
-    // Roster names are typed "Last, First" — sometimes with the nickname / typo variant.
-    let name = `${p.last}, ${p.first}`;
-    if (p.variant && i % 2 === 0) {
-      const [vf, ...vl] = p.variant.split(" ");
-      name = `${vl.join(" ")}, ${vf}`;
-    } else if (r() < 0.1) name = `${p.last}, ${p.first} ${p.middle}.`;
-    for (const s of services) {
-      roster[s].push([name, `${pad(1 + (i % 12))}/${pad(1 + (i % 27))}/20${22 + (i % 4)}`, CLINICIANS[i % 4], s === "OP" ? pick(r, ["Weekly", "Bi-weekly", "Monthly"]) : pick(r, ["2x weekly", "3x weekly", "Weekly"])]);
-    }
+    if (r() < 0.1 - monthIndex * 0.005) return; // a little churn month to month
+    // The roster writes "First Last"; some people are written with a nickname / typo.
+    let name = `${p.first} ${p.last}`;
+    if (p.variant && i % 2 === 0) name = p.variant;
+    else if (i % 10 === 4) name = `${p.first} ${p.middle}. ${p.last}`;
+    const entry = { name, site: p.site, freq: FREQS[i % FREQS.length] };
+    if (p.bh === "PSR" || p.bh === "both") roster.PSR.push({ ...entry, staff: PSR_STAFF[i % PSR_STAFF.length] });
+    if (p.bh === "OP" || p.bh === "both") roster.OP.push({ ...entry, staff: OP_STAFF[Math.floor(i / 2) % OP_STAFF.length] });
   });
   // New enrollees over time so the trend moves.
   for (let k = 0; k < monthIndex; k++) {
     const p = population.people[(k * 7 + 1) % population.people.length];
-    if (!p.bh) roster.OP.push([`${p.last}, ${p.first}`, `${month.slice(5)}/01/${month.slice(0, 4)}`, CLINICIANS[k % 4], "Weekly"]);
+    if (!p.bh) roster.OP.push({ name: `${p.first} ${p.last}`, site: p.site, freq: "Weekly", staff: OP_STAFF[k % 2] });
   }
-  roster.OP.sort((a, b) => a[0].localeCompare(b[0]));
-  roster.PSR.sort((a, b) => a[0].localeCompare(b[0]));
+  // 1:1 PSR sessions: pairs of existing PSR clients.
+  for (let k = 0; k + 1 < Math.min(6, roster.PSR.length); k += 2) roster.oneToOne.push([roster.PSR[k], roster.PSR[k + 1]]);
+  // Additional caseload: a few people per staff member, some annotated.
+  roster.additional = roster.OP.slice(0, 8).map((e, k) => ({ ...e, name: k % 5 === 4 ? `${e.name} - DEMO STATUS` : e.name }));
   return roster;
 }
 
@@ -241,16 +268,59 @@ function monthLabel(month) {
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
+/** Header-less [site | frequency | name] rows with schedule rows mixed in, like the real doc. */
+function caseloadTable(entries, total, service) {
+  const rows = [];
+  entries.forEach((e, i) => {
+    if (i % 8 === 0) rows.push([SCHEDULES[(i / 8) % 2], i ? "" : "(One per Week)", `Total: ${total} (${service})`]);
+    rows.push([e.site, e.freq, e.name]);
+    if (i % 11 === 10) rows.push([e.site, "", ""]); // blank template row
+  });
+  return tableNoHeader(rows);
+}
+
+function tableNoHeader(rows) {
+  const border = '<w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/>';
+  return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${border}</w:tblBorders></w:tblPr>` +
+    rows.map((r) => `<w:tr>${r.map((c) => cell(c, false)).join("")}</w:tr>`).join("") + "</w:tbl>";
+}
+
 async function rosterDocx(roster, month) {
-  const header = ["Client Name", "Admission Date", "Clinician", "Frequency"];
-  const body =
-    para(`Behavioral Health Services Roster — ${monthLabel(month)}`, { bold: true, size: 32 }) +
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const updated = new Date(Date.UTC(y, m - 1, lastDay - 2)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+  let body =
+    para("Behavioral Health", { bold: true, size: 32 }) +
     para("DEMO DATA — all names are fictitious.", { size: 18 }) +
-    para("Outpatient Therapy (OP)", { bold: true, size: 26 }) +
-    table(header, roster.OP) +
-    para("") +
-    para("Psychosocial Rehabilitation (PSR)", { bold: true, size: 26 }) +
-    table(header, roster.PSR);
+    para("Caseloads", { bold: true, size: 28 }) +
+    para(`Updated ${updated}`) + para("");
+  for (const staff of PSR_STAFF) {
+    const list = roster.PSR.filter((e) => e.staff === staff);
+    if (!list.length) continue;
+    body += para(`${staff} — Total: ${list.length} (Psychosocial Rehabilitation-PSR)`, { bold: true }) +
+      caseloadTable(list, list.length, "Psychosocial Rehabilitation- PSR") + para("") + para("");
+  }
+  for (const staff of OP_STAFF) {
+    const list = roster.OP.filter((e) => e.staff === staff);
+    if (!list.length) continue;
+    body += para(`Therapist: ${staff} — Total: ${list.length} (Individual Therapy)`, { bold: true }) +
+      tableNoHeader(list.map((e) => [e.site, e.freq, e.name])) + para("");
+  }
+  if (roster.oneToOne.length) {
+    body += para("1:1 (Psychosocial Rehabilitation-PSR)", { bold: true }) +
+      table(["Site", "Frequency", PSR_STAFF[2], ""], roster.oneToOne.map(([a, b]) => [a.site, a.freq, a.name, b.name])) + para("");
+  }
+  if (roster.additional.length) {
+    const half = Math.ceil(roster.additional.length / 2);
+    const left = roster.additional.slice(0, half);
+    const right = roster.additional.slice(half);
+    body += para(`Additional Caseload: As of ${updated}`, { bold: true }) +
+      table([OP_STAFF[0], OP_STAFF[1]], left.map((e, k) => [e.name, right[k] ? right[k].name : ""])) + para("");
+  }
+  body += para("Demo contact procedures", { bold: true }) +
+    para("DEMO: procedures for contacting the on-call clinician would appear here.") +
+    para("Therapy", { bold: true }) + para("DEMO: therapy contact notes.") +
+    para("PSR", { bold: true }) + para("DEMO: PSR contact notes.");
   return makeDocx(body);
 }
 

@@ -7,14 +7,15 @@ import { SegmentBar, Spark, TrendLines, SERIES } from "../components/charts";
 import { api, qs } from "../lib/api";
 import { fmt, monthLabel } from "../lib/format";
 
+// [flag, label, is a Data Metric Goal, how it's counted]
 const INDICATORS = [
-  ["f_hospitalization", "Hospitalizations", "Data Metric Goal"],
-  ["f_police", "Police involvement", "Data Metric Goal"],
-  ["f_crisis", "Crisis calls", "Data Metric Goal"],
-  ["f_property_damage", "Property damage", "Data Metric Goal"],
-  ["f_er", "ER visits", null],
-  ["f_911", "911 calls", null],
-  ["f_self_injury", "Self-injury", null],
+  ["f_hospitalization", "Psychiatric admissions", true, "PHS “Psychiatric Admission (for observation)…”. Medical admissions aren’t in the export."],
+  ["f_police", "Police involvement", true, "“Engagement with Law Enforcement” or the “Police” intervention."],
+  ["f_crisis", "Crisis events", true, "“Behavioral Crisis requiring crisis intervention” or “Mobile Crisis Services”."],
+  ["f_property_damage", "Property damage", true, "PHS has no option for this; counted from narrative text only (a minimum)."],
+  ["f_er", "ER visits", false, "“Emergency Room Visit” intervention."],
+  ["f_911", "911 calls", false, "“911 Call” intervention."],
+  ["f_self_injury", "Self-injury / suicide attempt", false, "“Self-Injurious Behavior” or “Suicide Attempt” only."],
 ];
 
 export default function BehavioralHealth() {
@@ -76,12 +77,12 @@ export default function BehavioralHealth() {
       </div>
 
       <Card title="Crisis & safety indicators" subtitle={`Counts of event records in ${monthLabel(data.month)} · six-month trend · change vs. previous month`} delay={0.2}
-        footer={<span><Icon name="info" size={13} style={{ verticalAlign: -2 }} /> Indicators are detected in the PHS event report&rsquo;s classification and intervention fields. They need validating against PHS&rsquo;s real option list before being reported externally.</span>}>
+        footer={<span><Icon name="info" size={13} style={{ verticalAlign: -2 }} /> Counted from PHS&rsquo;s real option labels (hover a tile to see exactly how). Property damage has no PHS option, so it&rsquo;s a minimum taken from narratives. Confirm definitions with Kristen before reporting externally.</span>}>
         <div className="multiples">
-          {INDICATORS.map(([key, label, goal]) => {
+          {INDICATORS.map(([key, label, goal, how]) => {
             const diff = data.previous ? c[key] - p[key] : null;
             return (
-              <div className="multiple" key={key}>
+              <div className="multiple" key={key} title={how}>
                 <div className="multiple-head">
                   <span>{label}{goal && <span className="tag brand" style={{ marginLeft: 6, height: 18, fontSize: 10.5 }}>Goal</span>}</span>
                   <strong>{fmt(c[key])}</strong>

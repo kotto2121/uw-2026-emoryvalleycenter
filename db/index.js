@@ -121,6 +121,11 @@ CREATE TABLE IF NOT EXISTS event_report (
 CREATE INDEX IF NOT EXISTS ix_event_month ON event_report(event_month);
 CREATE INDEX IF NOT EXISTS ix_event_person ON event_report(person_id);
 
+CREATE TABLE IF NOT EXISTS app_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
+
 CREATE TABLE IF NOT EXISTS bh_enrollment (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   batch_id      INTEGER NOT NULL REFERENCES import_batch(id),
@@ -151,7 +156,33 @@ async function getDb() {
   db = fs.existsSync(file) ? new SQL.Database(fs.readFileSync(file)) : new SQL.Database();
   db.run("PRAGMA foreign_keys = ON;");
   db.run(SCHEMA);
+  reclassifyIfNeeded();
   return db;
+}
+
+/**
+ * Re-derive event flags when db/classify.js changes (CLASSIFIER_VERSION), so
+ * data imported under older rules is updated without re-importing files.
+ */
+function reclassifyIfNeeded() {
+  const { CLASSIFIER_VERSION, computeFlags } = require("./classify");
+  const row = get("SELECT value FROM app_meta WHERE key = 'classifier_version'");
+  if (row && Number(row.value) === CLASSIFIER_VERSION) return;
+  const rows = all("SELECT * FROM event_report");
+  db.run("BEGIN");
+  try {
+    for (const r of rows) {
+      const f = computeFlags(r);
+      const keys = Object.keys(f);
+      db.run(`UPDATE event_report SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ?`, [...keys.map((k) => f[k]), r.id]);
+    }
+    db.run("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('classifier_version', ?)", [String(CLASSIFIER_VERSION)]);
+    db.run("COMMIT");
+  } catch (err) {
+    db.run("ROLLBACK");
+    throw err;
+  }
+  if (rows.length) persist();
 }
 
 /**

@@ -1,0 +1,316 @@
+{
+  "columns": {
+    "Tier 1 Events": {
+      "options": [
+        {
+          "label": "Alleged Emotional/Psychological Abuse",
+          "rows": 1
+        },
+        {
+          "label": "Death-Unexpected and/or Unexplained",
+          "rows": 2
+        },
+        {
+          "label": "Alleged Sexual Abuse",
+          "rows": 1
+        },
+        {
+          "label": "Alleged Neglect",
+          "rows": 1
+        },
+        {
+          "label": "Alleged Physical Abuse",
+          "rows": 2
+        }
+      ],
+      "unsplittable_examples_count": 0
+    },
+    "Tier 2 Events": {
+      "options": [
+        {
+          "label": "Alleged Emotional/Psychological Abuse",
+          "rows": 3
+        },
+        {
+          "label": "Alleged Neglect",
+          "rows": 12
+        },
+        {
+          "label": "Alleged Physical Abuse",
+          "rows": 1
+        }
+      ],
+      "unsplittable_examples_count": 0
+    },
+    "Behavioral/Psychiatric Events": {
+      "options": [
+        {
+          "label": "Behavioral Crisis requiring crisis intervention",
+          "rows": 15
+        },
+        {
+          "label": "Psychiatric Admission (for observation) including in an acute care hospital",
+          "rows": 2
+        },
+        {
+          "label": "Engagement with Law Enforcement",
+          "rows": 5
+        },
+        {
+          "label": "Physical Aggression",
+          "rows": 8
+        },
+        {
+          "label": "Reportable Behavior involving physical aggression and/or self-injurious behavior resulting in injury to another person",
+          "rows": 5
+        },
+        {
+          "label": "Self-Injurious Behavior",
+          "rows": 1
+        },
+        {
+          "label": "Suicide Attempt",
+          "rows": 2
+        },
+        {
+          "label": "Housemate",
+          "rows": 1
+        },
+        {
+          "label": "Staff",
+          "rows": 2
+        }
+      ],
+      "unsplittable_examples_count": 0
+    },
+    "Event Interventions": {
+      "options": [
+        {
+          "label": "911 Call",
+          "rows": 33
+        },
+        {
+          "label": "EMT",
+          "rows": 23
+        },
+        {
+          "label": "Emergency Room Visit",
+          "rows": 53
+        },
+        {
+          "label": "Administration of PRN Psychotropic Medication",
+          "rows": 1
+        },
+        {
+          "label": "Police",
+          "rows": 11
+        },
+        {
+          "label": "Mobile Crisis Services",
+          "rows": 5
+        },
+        {
+          "label": "Urgent Care Facility",
+          "rows": 12
+        },
+        {
+          "label": "Fire Department",
+          "rows": 1
+        },
+        {
+          "label": "X-ray (to rule out fracture)",
+          "rows": 3
+        },
+        {
+          "label": "Abdominal Thrust/Back Blows/Heimlich Maneuver",
+          "rows": 1
+        }
+      ],
+      "unsplittable_examples_count": 0
+    },
+    "Other Event Types": {
+      "short_category_labels": [
+        {
+          "label": "Other - self injurious behaviors; disruptive behaviors",
+          "rows": 165
+        },
+        {
+          "label": "Other - medical",
+          "rows": 5
+        },
+        {
+          "label": "Minor – Vehicle accident while transporting person",
+          "rows": 10
+        },
+        {
+          "label": "Falls with injury",
+          "rows": 13
+        },
+        {
+          "label": "Other - Aggression",
+          "rows": 9
+        }
+      ],
+      "narrative_rows": 441
+    },
+    "Non Reportable": {
+      "values": [
+        {
+          "label": "Non-Reportable",
+          "rows": 2392
+        },
+        {
+          "label": "Reportable",
+          "rows": 108
+        }
+      ]
+    },
+    "This incident was / By": {
+      "values": [
+        {
+          "label": "Witnessed by Provider Staff",
+          "rows": 1481
+        },
+        {
+          "label": "Discovered by Provider Staff",
+          "rows": 263
+        },
+        {
+          "label": "Witnessed by Person Supported/Other Persons Supported",
+          "rows": 21
+        },
+        {
+          "label": "Witnessed by DIDD/TennCare Staff",
+          "rows": 54
+        },
+        {
+          "label": "Witnessed by Other",
+          "rows": 35
+        },
+        {
+          "label": "Discovered by Other",
+          "rows": 100
+        },
+        {
+          "label": "Witnessed by Therapy Personnel",
+          "rows": 32
+        },
+        {
+          "label": "Discovered by DIDD/TennCare Staff",
+          "rows": 6
+        },
+        {
+          "label": "Witnessed by Medical Personnel",
+          "rows": 4
+        },
+        {
+          "label": "Discovered by Person Supported/Other Persons Supported",
+          "rows": 21
+        },
+        {
+          "label": "Discovered by Medical Personnel",
+          "rows": 2
+        },
+        {
+          "label": "Discovered by Other Service Provider",
+          "rows": 4
+        },
+        {
+          "label": "Discovered by Law Enforcement",
+          "rows": 1
+        },
+        {
+          "label": "Witnessed by Other Service Provider",
+          "rows": 12
+        },
+        {
+          "label": "Witnessed by APS/DCS",
+          "rows": 1
+        },
+        {
+          "label": "Witnessed by Private Citizen",
+          "rows": 5
+        },
+        {
+          "label": "Discovered by Therapy Personnel",
+          "rows": 3
+        },
+        {
+          "label": "Discovered by Private Citizen",
+          "rows": 1
+        }
+      ]
+    },
+    "Event Location": {
+      "values": [
+        {
+          "label": "Vehicle",
+          "rows": 27
+        },
+        {
+          "label": "Home - Inside",
+          "rows": 1752
+        },
+        {
+          "label": "Community - Supervised",
+          "rows": 150
+        },
+        {
+          "label": "Home - Outside",
+          "rows": 77
+        },
+        {
+          "label": "Community - Unsupervised",
+          "rows": 74
+        },
+        {
+          "label": "Day Program / Work / School",
+          "rows": 27
+        },
+        {
+          "label": "Unknown",
+          "rows": 6
+        }
+      ]
+    },
+    "Level of Injury": {
+      "values": [
+        {
+          "label": "No Injury",
+          "rows": 1594
+        },
+        {
+          "label": "Minor Injury",
+          "rows": 596
+        },
+        {
+          "label": "Serious Injury",
+          "rows": 13
+        }
+      ]
+    }
+  },
+  "dashboard_mapping": {
+    "hospitalization": [
+      "Psychiatric Admission (for observation) including in an acute care hospital"
+    ],
+    "police_involvement": [
+      "Engagement with Law Enforcement",
+      "Police"
+    ],
+    "crisis_call": [
+      "Mobile Crisis Services"
+    ],
+    "property_damage": [],
+    "er_visit": [
+      "Emergency Room Visit"
+    ],
+    "self_injury": [
+      "Self-Injurious Behavior",
+      "Suicide Attempt",
+      "Other - self injurious behaviors; disruptive behaviors"
+    ]
+  },
+  "hidden_sheets_or_columns": "One visible sheet; no hidden sheets or hidden columns; no populated columns outside A:N.",
+  "any_id_like_column": "none"
+}

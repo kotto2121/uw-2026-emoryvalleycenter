@@ -10,53 +10,76 @@
  *   - splitOptions() recovers individual labels by longest-match against a
  *     known option dictionary, for "kinds of intervention" breakdowns.
  *
- * IMPORTANT: the dictionaries and patterns below are a first draft built from
- * the deidentified profile (which confirmed "911 Call", "EMT" and
- * "Emergency Room Visit"). Replace/extend them with the real PHS option list
- * (see docs/chatgpt-prompt.md, Task 2) before trusting the numbers.
+ * The dictionaries below come from EVC's real export (via the ChatGPT
+ * structure-only analysis in docs/chatgpt-outputs/). The export can only show
+ * options that were actually selected; confirm the full list on the PHS form.
  */
 
+/**
+ * Bump when the dictionaries or patterns change: on startup, every stored
+ * event row is re-classified so dashboards always reflect the current rules.
+ */
+const CLASSIFIER_VERSION = 2;
+
+// Real PHS option labels recovered from EVC's export (docs/chatgpt-outputs/
+// Prompt_C_event_option_labels.json + Option_label_verification.json).
+// Labels marked "inferred" were only seen inside concatenated cells; confirm
+// them against the PHS form before relying on them.
 const INTERVENTION_OPTIONS = [
   "911 Call",
   "EMT",
   "Emergency Room Visit",
-  "Police Involvement",
-  "Police Called",
-  "Hospital Admission",
-  "Psychiatric Hospitalization",
-  "Mobile Crisis",
-  "Crisis Call",
-  "Urgent Care Visit",
-  "First Aid",
-  "Physician Visit",
-  "Restraint",
-  "N/A",
+  "Police",
+  "Mobile Crisis Services",
+  "Urgent Care Facility",
+  "Abdominal Thrust/Back Blows/Heimlich Maneuver",
+  "Administration of PRN Psychotropic Medication", // inferred
+  "Fire Department", // inferred
+  "X-ray (to rule out fracture)", // inferred
 ];
 
 const BEHAVIORAL_OPTIONS = [
+  "Behavioral Crisis requiring crisis intervention",
+  "Engagement with Law Enforcement",
   "Physical Aggression",
-  "Verbal Aggression",
-  "Property Damage",
-  "Self Injurious Behavior",
-  "Elopement",
-  "Suicidal Ideation",
-  "Suicide Attempt",
-  "Psychiatric Hospitalization",
-  "Crisis Call",
-  "Mobile Crisis Assessment",
-  "Police Involvement",
+  "Psychiatric Admission (for observation) including in an acute care hospital", // inferred
+  "Reportable Behavior involving physical aggression and/or self-injurious behavior resulting in injury to another person", // inferred
+  "Self-Injurious Behavior", // inferred
+  "Suicide Attempt", // inferred
+  // "Housemate" / "Staff" appear to be sub-choices (who was targeted), not event types.
+  "Housemate",
+  "Staff",
 ];
 
-/** Flag name -> pattern searched across all classification + intervention text. */
+const TIER_OPTIONS = [
+  "Alleged Emotional/Psychological Abuse",
+  "Alleged Physical Abuse",
+  "Alleged Sexual Abuse",
+  "Alleged Neglect",
+  "Death-Unexpected and/or Unexplained",
+];
+
+/**
+ * Flag name -> pattern searched across the classification + intervention text.
+ * Mapping agreed from Prompt C's dashboard_mapping, with its cautions:
+ *  - hospitalization: psychiatric admission only (Medical Events is blank in the
+ *    export, so medical admissions are NOT captured).
+ *  - crisis: a behavioral crisis event OR Mobile Crisis involvement (not proof a
+ *    phone call happened).
+ *  - property damage: PHS has no option for it; only narrative mentions in
+ *    "Other Event Types" are counted, so treat as a floor, not a total.
+ *  - self-injury: the strict labels only; the broad "Other - self injurious
+ *    behaviors; disruptive behaviors" category is reported separately.
+ */
 const FLAG_PATTERNS = {
-  f_911: /911/i,
-  f_emt: /\bEMT|\bEMS\b|ambulance/i,
-  f_er: /emergency room|emergency department|\bER visit|\bED visit/i,
-  f_hospitalization: /hospitaliz|hospital admission|admitted to (the )?hospital|inpatient/i,
-  f_police: /police|law enforcement|sheriff|officer/i,
-  f_crisis: /crisis/i,
-  f_property_damage: /property damage|damag(ed|ing) property|destruction of property/i,
-  f_self_injury: /self[\s-]*injur/i,
+  f_911: /911 Call/i,
+  f_emt: /EMT/, // case-sensitive; PHS glues labels together ("911 CallEMTEmergency…")
+  f_er: /Emergency Room Visit/i,
+  f_hospitalization: /Psychiatric Admission|hospitaliz|hospital admission/i,
+  f_police: /Engagement with Law Enforcement|Police/i,
+  f_crisis: /Behavioral Crisis requiring crisis intervention|Mobile Crisis/i,
+  f_property_damage: /property damage|damag(ed|ing) (the )?property|destruction of property|destroyed property/i,
+  f_self_injury: /Self-Injurious Behavior|Suicide Attempt/,
 };
 
 /** The text fields searched for flags (narratives included on purpose). */
@@ -98,6 +121,8 @@ function splitOptions(text, dictionary = INTERVENTION_OPTIONS) {
 }
 
 module.exports = {
+  CLASSIFIER_VERSION,
+  TIER_OPTIONS,
   INTERVENTION_OPTIONS,
   BEHAVIORAL_OPTIONS,
   FLAG_PATTERNS,
