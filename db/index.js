@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS person (
   first_name    TEXT,
   last_name     TEXT,
   is_demo       INTEGER NOT NULL DEFAULT 0,
+  is_behavioral INTEGER,                   -- NULL = never set; a BH roster import sets 1, a person's page can set 0/1
+  is_test       INTEGER NOT NULL DEFAULT 0, -- 1 = test patient, left out of every count
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -173,6 +175,10 @@ async function getDb() {
     "SELECT 1 FROM pragma_table_info('event_report') WHERE name = 'extra_fields'"
   );
   if (!hasExtra.length) db.run("ALTER TABLE event_report ADD COLUMN extra_fields TEXT;");
+  // Same for the person report flags (Behavioral / Test patient).
+  const personCols = new Set(all("SELECT name FROM pragma_table_info('person')").map((r) => r.name));
+  if (!personCols.has("is_behavioral")) db.run("ALTER TABLE person ADD COLUMN is_behavioral INTEGER;");
+  if (!personCols.has("is_test")) db.run("ALTER TABLE person ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0;");
   seedColumnMappings();
   reclassifyIfNeeded();
   return db;

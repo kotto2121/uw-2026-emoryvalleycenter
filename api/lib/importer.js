@@ -144,6 +144,9 @@ function importRoster({ entries, month, filename, isDemo = false }) {
         : {};
       if (!name || !["OP", "PSR"].includes(e.service)) continue;
       const personId = resolver.resolve(name);
+      // Initial roster setup: being on a BH roster marks the person Behavioral,
+      // unless someone already set the box by hand on their page (0 or 1).
+      db.run("UPDATE person SET is_behavioral = 1 WHERE id = ? AND is_behavioral IS NULL", [personId]);
       const r = db.run(
         `INSERT OR IGNORE INTO bh_enrollment (batch_id, person_id, raw_name, service, report_month, extra_json)
          VALUES (?, ?, ?, ?, ?, ?)`,

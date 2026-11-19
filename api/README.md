@@ -10,8 +10,9 @@ Express on `127.0.0.1`. In the packaged app it runs on a random port inside the 
 | GET | `/api/meta` | Months available, sites, counts, pending reviews, demo flag. |
 | GET | `/api/overview` | 12-month trend (people, events, reportable, BH) and data sources. |
 | GET | `/api/bh?month=YYYY-MM` | Behavioral health KPIs for the month, previous month and trend. |
-| GET | `/api/incidents/summary?from&to&site&includeDuplicates=1` | Incident KPIs and breakdowns. |
-| GET | `/api/incidents?from&to&site&q&flag&limit&offset` | Event rows (with matched person). |
+| GET | `/api/incidents/summary?from&to&site&segment&reportable&includeDuplicates=1` | Incident KPIs and breakdowns (incl. Medical options and Other Event Types keyword groups). |
+| GET | `/api/incidents?from&to&site&segment&reportable&q&flag&limit&offset` | Event rows (with matched person). |
+| GET | `/api/metrics?from&to&site&segment&reportable&includeDuplicates=1` | Behavioral Metrics page: each metric's events/people split All / Behavioral / Non-Behavioral, monthly trend, by-site and by-person tables. |
 | POST | `/api/import/incidents` | Body: raw .xlsx bytes, header `x-filename`. Imports the PHS event report directly (no review step). |
 | POST | `/api/imports/analyze` | Body: raw .xlsx bytes, header `x-filename`. Parses the workbook in memory and returns an `uploadId`, warnings, unknown headers and missing required columns — nothing is committed yet. |
 | POST | `/api/imports/:uploadId/commit` | JSON `{ decisions: [{ header, action: "map"\|"new"\|"ignore", field?, remember? }] }`. Commits the held upload; `remember: true` persists the column mapping for next time. Held uploads expire (→ `410`) if not committed. |
@@ -25,13 +26,15 @@ Express on `127.0.0.1`. In the packaged app it runs on a random port inside the 
 | GET | `/api/reviews?status=pending` | Review Queue items. |
 | POST | `/api/reviews/:id` | `{ action: "merge" \| "distinct", keepId? }` |
 | GET | `/api/people?q=` / `/api/people/:id` | Person registry / detail (aliases, enrollments, events). |
-| PATCH | `/api/people/:id` | `{ display_name }` |
+| PATCH | `/api/people/:id` | Any of `{ display_name, is_behavioral: bool, is_test: bool }`. A BH roster import sets `is_behavioral` only while it has never been set. |
 | GET | `/api/reports/bh-roster?month&service=OP\|PSR` | Roster report rows. |
 | GET | `/api/reports/bh-roster.xlsx?month[&service]` | Excel export (both services if no service is given). |
 | GET | `/api/reports/incidents.xlsx?from&to[&includeDuplicates=1]` | Incident report workbook (Summary, Month, Site, Individual, Tier 1/2, Behavior, Medical, Other, Reportable, Discovery, Location, Requirements, Injury). |
 | POST | `/api/demo/load` | Replace all data with fictitious demo data (refused if real data is loaded). |
 | POST | `/api/admin/clear` | `{ confirm: "CLEAR" }`. Wipes all data (backup first). |
 | GET | `/api/admin/info` | Database path and version. |
+
+Filters on `/api/incidents/summary`, `/api/incidents` and `/api/metrics`: `segment=behavioral|non` (the person's Behavioral box) and `reportable=reportable|non`. Test patients (`person.is_test = 1`) are left out of every count on every route, including the Excel reports.
 
 The schema is in `db/index.js`.
 

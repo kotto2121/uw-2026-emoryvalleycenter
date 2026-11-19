@@ -112,7 +112,8 @@ function multiSelect(rows, field, options, { exclude = [] } = {}) {
 }
 
 async function incidentReportWorkbook({ from, to, includeDuplicates = false } = {}) {
-  const where = ["event_month IS NOT NULL"];
+  // Test patients (person.is_test) are left out of every report.
+  const where = ["event_month IS NOT NULL", "COALESCE(p.is_test, 0) = 0"];
   const params = [];
   if (!includeDuplicates) where.push("is_exact_duplicate = 0");
   if (from) { where.push("event_month >= ?"); params.push(from); }

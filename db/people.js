@@ -140,6 +140,13 @@ function mergePeople(keepId, dropId) {
     const other = a === dropId ? b : a;
     if (other !== keepId) markDistinct(keepId, other);
   }
+  // Carry the report flags over: test if either was, behavioral if either was
+  // (still NULL only when neither record was ever set).
+  const flags = db.get(
+    `SELECT MAX(is_test) AS is_test,
+            CASE WHEN COUNT(is_behavioral) = 0 THEN NULL ELSE MAX(is_behavioral) END AS is_behavioral
+     FROM person WHERE id IN (?, ?)`, [keepId, dropId]);
+  db.run("UPDATE person SET is_test = ?, is_behavioral = ? WHERE id = ?", [flags.is_test || 0, flags.is_behavioral, keepId]);
   db.run("DELETE FROM person WHERE id = ?", [dropId]);
 }
 

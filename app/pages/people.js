@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Drawer from "../components/Drawer";
 import Icon from "../components/Icon";
 import { useMeta } from "../components/Layout";
-import { Button, Callout, Card, Empty, PageHeader, toast, useAsync } from "../components/ui";
+import { Button, Callout, Card, Empty, PageHeader, Toggle, toast, useAsync } from "../components/ui";
 import { api, qs } from "../lib/api";
 import { dateLabel, fmt, monthLabel } from "../lib/format";
 
@@ -21,6 +21,14 @@ function PersonDrawer({ id, onClose, onChanged }) {
       onChanged();
     } catch (e) { toast(e.message, "bad"); }
   }
+  async function setFlag(flag, value) {
+    try {
+      await api.patch(`/api/people/${id}`, { [flag]: value });
+      toast(flag === "is_test" ? (value ? "Marked as a test patient" : "No longer a test patient") : (value ? "Marked behavioral" : "No longer marked behavioral"));
+      reload();
+      onChanged();
+    } catch (e) { toast(e.message, "bad"); }
+  }
   const months = data ? [...new Set(data.enrollments.map((e) => e.report_month))] : [];
   return (
     <Drawer open={!!id} onClose={onClose}
@@ -29,6 +37,23 @@ function PersonDrawer({ id, onClose, onChanged }) {
       actions={data && (editing ? <Button size="sm" variant="primary" icon="check" onClick={save}>Save</Button> : <Button size="sm" onClick={() => setEditing(true)}>Rename</Button>)}>
       {data && (
         <>
+          <div className="drawer-section">
+            <h3>Reporting</h3>
+            <div style={{ display: "grid", gap: 10 }}>
+              <div>
+                <Toggle checked={data.person.is_behavioral === 1} onChange={(v) => setFlag("is_behavioral", v)} label="Behavioral patient" />
+                <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+                  {data.person.is_behavioral === null
+                    ? "Not set. Importing a BH roster that lists this person ticks it."
+                    : "Puts this person’s events in the Behavioral segment. A roster import won’t change a box set here."}
+                </p>
+              </div>
+              <div>
+                <Toggle checked={data.person.is_test === 1} onChange={(v) => setFlag("is_test", v)} label="Test patient" />
+                <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>Leaves this person out of every count, chart and report.</p>
+              </div>
+            </div>
+          </div>
           <div className="drawer-section">
             <h3>Names seen in source files</h3>
             <div className="tags">{data.aliases.map((a) => <span key={a.raw_name} className={`tag${a.how === "merged" ? " info" : ""}`} title={`${a.source} · ${a.how}`}>{a.raw_name}</span>)}</div>
@@ -89,7 +114,11 @@ export default function People() {
               <tbody>
                 {(data?.people || []).map((p) => (
                   <tr key={p.id} className="clickable" onClick={() => open(p.id)}>
-                    <td><strong style={{ fontWeight: 600 }}>{p.display_name}</strong></td>
+                    <td>
+                      <strong style={{ fontWeight: 600 }}>{p.display_name}</strong>
+                      {p.is_behavioral === 1 && <span className="tag brand" style={{ marginLeft: 6 }}>Behavioral</span>}
+                      {p.is_test === 1 && <span className="tag warn" style={{ marginLeft: 6 }}>Test</span>}
+                    </td>
                     <td className="num">{p.aliases > 1 ? <span className="tag info">{p.aliases}</span> : 1}</td>
                     <td className="num">{fmt(p.events)}</td>
                     <td>{p.last_event ? dateLabel(p.last_event) : <span className="muted">—</span>}</td>

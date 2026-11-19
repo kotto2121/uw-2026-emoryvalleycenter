@@ -6,7 +6,7 @@ A **local-first desktop dashboard** for Emory Valley Center (EVC). It runs entir
 
 1. **Import** the PHS *New Reportable Event Report* (.xlsx) and the monthly *Behavioral Health roster* Word document (.docx).
 2. **Match people across files** without a client ID: a person registry with name normalization and fuzzy matching. Close-but-uncertain matches go to a **Review Queue** for a human decision, and every decision is remembered.
-3. **Dashboards:** Overview, Behavioral Health (OP / PSR enrollment plus crisis indicators) and Incidents & Safety, with filters by month and site and month-over-month trends.
+3. **Dashboards:** Overview, Behavioral Health (OP / PSR enrollment plus crisis indicators), Incidents & Safety and Behavioral Metrics (each metric split Behavioral / Non-Behavioral, monthly trend, by site, by person), with filters by month, site, segment and reportability. People can be marked **Behavioral** (a BH roster import ticks it to start) or **Test** (left out of every count) on their page.
 4. **Reports:** the monthly OP and PSR reports that used to be built by hand, exported as Excel or printed.
 5. **Roadmap pages** for every other program in EVC's Data Metric Goals.
 
@@ -33,7 +33,7 @@ db/              SQLite via sql.js (pure WASM — no native build tools)
   classify.js    PHS option dictionaries + crisis/police/hospitalization flags
 app/             Next.js (pages router) static export → app/out
   components/    Layout (sidebar/topbar), charts, KPI tiles, drawer, icons, logo
-  pages/         index (Overview), behavioral-health, incidents, import, review,
+  pages/         index (Overview), behavioral-health, incidents, metrics, import, review,
                  people, reports, programs (roadmap), settings — see app/README.md
 docs/            user guide, metrics, parsing, matching, architecture, privacy, dev guide, limitations;
                  chatgpt-prompt.md + chatgpt-outputs/ (structure-only analysis of real files)

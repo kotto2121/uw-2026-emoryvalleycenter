@@ -6,6 +6,7 @@ import { useMeta } from "../components/Layout";
 import { Button, Card, Empty, Kpi, MonthSelect, PageHeader, PartialMonthNotice, Select, Skeleton, Toggle, useAsync } from "../components/ui";
 import { BarList, TrendBars, SERIES } from "../components/charts";
 import { api, qs } from "../lib/api";
+import { INCLUDE_OPTIONS, SEGMENT_OPTIONS } from "../lib/filters";
 import { dateLabel, fmt, monthLabel, pct, sameName } from "../lib/format";
 
 const FLAG_CHIPS = [
@@ -34,6 +35,8 @@ export default function Incidents() {
   const [from, setFrom] = useState(null);
   const [to, setTo] = useState(null);
   const [site, setSite] = useState("");
+  const [segment, setSegment] = useState("");
+  const [reportable, setReportable] = useState("");
   const [dups, setDups] = useState(false);
   const [flag, setFlag] = useState("");
   const [q, setQ] = useState("");
@@ -41,9 +44,11 @@ export default function Incidents() {
   const [selected, setSelected] = useState(null);
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 250); return () => clearTimeout(t); }, [q]);
 
-  const filters = { from, to, site, includeDuplicates: dups };
-  const summary = useAsync(() => api.get(`/api/incidents/summary${qs(filters)}`), [from, to, site, dups, meta?.last_import, meta?.pending_reviews]);
-  const list = useAsync(() => api.get(`/api/incidents${qs({ ...filters, q: debouncedQ, flag, limit: 150 })}`), [from, to, site, dups, debouncedQ, flag, meta?.last_import, meta?.pending_reviews]);
+  const filters = { from, to, site, segment, reportable, includeDuplicates: dups };
+  // meta.behavioral_people / test_people change when a person's boxes change.
+  const deps = [from, to, site, segment, reportable, dups, meta?.last_import, meta?.pending_reviews, meta?.behavioral_people, meta?.test_people];
+  const summary = useAsync(() => api.get(`/api/incidents/summary${qs(filters)}`), deps);
+  const list = useAsync(() => api.get(`/api/incidents${qs({ ...filters, q: debouncedQ, flag, limit: 150 })}`), [...deps, debouncedQ, flag]);
 
   if (!meta) return <Skeleton h={400} />;
   if (!meta.months.events.length) {
@@ -65,13 +70,15 @@ export default function Incidents() {
       <PageHeader
         eyebrow="Program dashboard"
         title="Incidents & Safety"
-        subtitle="Every event from the PHS New Reportable Event Report. Blank fields are shown as “Not recorded” rather than counted as “none.”"
+        subtitle="Every event from the PHS New Reportable Event Report. Blank fields are shown as “Not recorded” rather than counted as “none.” Test patients are always left out."
       />
 
       <div className="filters">
         <MonthSelect label="From" months={meta.months.events} value={from} onChange={setFrom} allowEmpty emptyLabel="Earliest" />
         <MonthSelect label="To" months={meta.months.events} value={to} onChange={setTo} allowEmpty emptyLabel="Latest" />
         <Select label="Site" value={site} onChange={setSite} options={[{ value: "", label: "All sites" }, ...meta.sites.map((x) => ({ value: x, label: x }))]} />
+        <Select label="Segment" value={segment} onChange={setSegment} options={SEGMENT_OPTIONS} />
+        <Select label="Events" value={reportable} onChange={setReportable} options={INCLUDE_OPTIONS} />
         <span className="spacer" />
         <Toggle checked={dups} onChange={setDups} label="Include exact duplicate rows" />
       </div>
@@ -126,8 +133,8 @@ export default function Incidents() {
                   ))}</tbody></table>
               ) : <p className="muted">None recorded.</p>}
             </Card>
-            <Card title="Other event types" subtitle="Short PHS categories; free-text entries grouped" delay={0.15}>
-              <BarList rows={s.otherCategories} color={SERIES[1]} formatLabel={(l) => l.replace(/^Other - /, "")} />
+            <Card title="Other event types" subtitle={`${fmt(t.with_other)} events · grouped by keyword, including free-text entries`} delay={0.15}>
+              {s.otherGroups.length ? <BarList rows={s.otherGroups} color={SERIES[1]} total={t.with_other} /> : <p className="muted">None recorded.</p>}
             </Card>
           </div>
 

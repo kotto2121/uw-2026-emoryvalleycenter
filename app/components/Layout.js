@@ -15,7 +15,10 @@ const NAV = [
   { group: null, items: [{ href: "/", label: "Overview", icon: "grid" }] },
   {
     group: "Programs",
-    items: PROGRAMS.filter((p) => p.status === "live").map((p) => ({ href: p.href, label: p.name, icon: p.icon })),
+    items: [
+      ...PROGRAMS.filter((p) => p.status === "live").map((p) => ({ href: p.href, label: p.name, icon: p.icon })),
+      { href: "/metrics", label: "Behavioral Metrics", icon: "activity" },
+    ],
   },
   {
     group: "Data",
@@ -32,6 +35,7 @@ const TITLES = {
   "/": "Overview",
   "/behavioral-health": "Behavioral Health",
   "/incidents": "Incidents & Safety",
+  "/metrics": "Behavioral Metrics",
   "/import": "Import Center",
   "/review": "Review Queue",
   "/people": "People",

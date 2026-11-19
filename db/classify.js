@@ -145,6 +145,36 @@ const FLAG_PATTERNS = {
   f_restraint: /Manual Restraint|Mechanical Restraint|Protective Equipment|Emergency Psychotropic Medication|emergency psychotropic medication|restraints?, regardless/i,
 };
 
+/**
+ * Keyword categories for "Other Event Types", which mixes PHS short categories
+ * with free text, typos and case variants, so an option list can't split it.
+ * Labels and terms follow EVC's Behavioral Reporting workbook (its Other tab),
+ * so the counts can be checked against it. One event can match several.
+ */
+const OTHER_CATEGORIES = [
+  ["Self-injurious behaviors", /self[- ]?injur/i],
+  ["Disruptive behaviors", /disruptive/i],
+  ["Aggression", /aggress/i],
+  ["Screaming", /scream/i],
+  ["Agitation", /agitat/i],
+  ["Vehicle accident", /vehicle accident/i],
+  ["Falls with injury", /falls? with injury/i],
+  ["Medication Variance", /medication variance/i],
+  ["Unsafe Environment", /unsafe environment/i],
+  ["Missing Person", /missing person/i],
+  ["Emergency Situations", /emergency situation/i],
+  ["Positive COVID-19", /covid/i],
+  ["Victim of Fire", /victim of fire/i],
+  ["Routine Psychotropic Medication", /routine psychotropic/i],
+  ["Enabling Technology Remote Supports", /enabling technology|remote support/i],
+];
+
+/** -> labels of every category whose pattern matches the text. */
+function categorize(text, categories) {
+  const s = String(text || "");
+  return categories.filter(([, re]) => re.test(s)).map(([label]) => label);
+}
+
 /** The text fields searched for flags (narratives included on purpose). */
 const FLAG_SOURCE_FIELDS = [
   "tier_1_events",
@@ -194,6 +224,8 @@ module.exports = {
   INTERVENTION_OPTIONS,
   BEHAVIORAL_OPTIONS,
   FLAG_PATTERNS,
+  OTHER_CATEGORIES,
   computeFlags,
   splitOptions,
+  categorize,
 };
