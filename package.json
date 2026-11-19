@@ -2,6 +2,7 @@
   "name": "emoryvalley",
   "productName": "EmoryValley",
   "version": "0.1.0",
+  "author": "EmoryValley",
   "description": "Hello-world Electron app: Next.js front end, Express API, SQLite (sql.js) database.",
   "main": "electron/main.js",
   "private": true,
