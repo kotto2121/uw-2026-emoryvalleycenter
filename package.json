@@ -1,8 +1,8 @@
 {
   "name": "emoryvalley",
-  "productName": "EmoryValley",
+  "productName": "Greenhouse by Emory Valley Center",
   "version": "0.1.0",
-  "author": "EmoryValley",
+  "author": "Emory Valley Center",
   "description": "Hello-world Electron app: Next.js front end, Express API, SQLite (sql.js) database.",
   "main": "electron/main.js",
   "private": true,
@@ -33,7 +33,7 @@
   },
   "build": {
     "appId": "com.emoryvalley.app",
-    "productName": "EmoryValley",
+    "productName": "Greenhouse by Emory Valley Center",
     "directories": {
       "output": "release"
     },

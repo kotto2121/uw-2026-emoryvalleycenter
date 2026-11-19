@@ -57,10 +57,11 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>EmoryValley</title>
+        <title>Greenhouse by Emory Valley Center</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <main>
+        <p className="brand">Greenhouse by Emory Valley Center</p>
         <h1>{hello ? hello.message : "Loading…"}</h1>
         <p className="sub">
           Electron + Next.js + Express + SQLite — hello world, end to end.
@@ -101,6 +102,7 @@ export default function Home() {
           color: #e2e8f0;
         }
         main { max-width: 720px; margin: 0 auto; padding: 48px 24px; }
+        .brand { color: #38bdf8; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; font-size: 13px; margin: 0 0 8px; }
         h1 { font-size: 40px; margin-bottom: 4px; }
         .sub { color: #94a3b8; margin-top: 0; }
         .err { color: #f87171; }

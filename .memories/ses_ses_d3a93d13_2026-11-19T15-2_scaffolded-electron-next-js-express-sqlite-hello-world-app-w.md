@@ -57,5 +57,5 @@ ses_d3a93d13 · Scaffolded Electron
  +8 more
  shape: STT▓▓▓TT▓▒
  tools: files.write×10 files.script×9 run.script×5 tasks.do…
- tasks: ████████░░ 3/4
+ tasks: ░░░░░░░░░░ 0/3
 ```

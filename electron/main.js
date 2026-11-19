@@ -54,7 +54,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 750,
-    title: "EmoryValley",
+    title: "Greenhouse by Emory Valley Center",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

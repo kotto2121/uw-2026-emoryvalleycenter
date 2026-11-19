@@ -1,4 +1,4 @@
-# EmoryValley
+# Greenhouse by Emory Valley Center
 
 A minimal **hello-world Electron app** with a clean three-tier layout:
 
@@ -76,8 +76,8 @@ npm run dist:win
 
 Output lands in `release/`:
 
-- `EmoryValley Setup 0.1.0.exe` — NSIS installer (lets the user pick install dir).
-- `EmoryValley 0.1.0.exe` — portable single-file exe (no install needed; just double-click).
+- `Greenhouse by Emory Valley Center Setup 0.1.0.exe` — NSIS installer (lets the user pick install dir).
+- `Greenhouse by Emory Valley Center 0.1.0.exe` — portable single-file exe (no install needed; just double-click).
 
 Copy either file to the colleague's laptop and run it. **That's the whole delivery.** No Node.js install required on their machine — Electron bundles its own runtime.
 
@@ -109,5 +109,5 @@ electron-builder *can* produce Windows artifacts from macOS, but with caveats �
 ## Notes / known limitations
 
 - **Unsigned** — fine for internal hand-off; expect a SmartScreen prompt on first launch.
-- The DB is a single local SQLite file per machine (in the OS user-data dir for packaged builds: `%APPDATA%\EmoryValley\emoryvalley.db` on Windows).
+- The DB is a single local SQLite file per machine (in the OS user-data dir for packaged builds: `%APPDATA%\Greenhouse by Emory Valley Center\emoryvalley.db` on Windows).
 - CORS is wide open (`*`) because the API is local-only and meant for the Electron renderer. Don't expose it to a network.
