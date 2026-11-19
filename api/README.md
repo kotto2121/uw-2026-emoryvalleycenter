@@ -23,6 +23,7 @@ Express on `127.0.0.1`. In the packaged app it runs on a random port inside the 
 | PATCH | `/api/people/:id` | `{ display_name }` |
 | GET | `/api/reports/bh-roster?month&service=OP\|PSR` | Roster report rows. |
 | GET | `/api/reports/bh-roster.xlsx?month[&service]` | Excel export (both services if no service is given). |
+| GET | `/api/reports/incidents.xlsx?from&to[&includeDuplicates=1]` | Incident report workbook (Summary, Month, Site, Individual, Tier 1/2, Behavior, Medical, Other, Reportable, Discovery, Location, Requirements, Injury). |
 | POST | `/api/demo/load` | Replace all data with fictitious demo data (refused if real data is loaded). |
 | POST | `/api/admin/clear` | `{ confirm: "CLEAR" }`. Wipes all data (backup first). |
 | GET | `/api/admin/info` | Database path and version. |

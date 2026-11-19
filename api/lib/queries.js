@@ -10,10 +10,11 @@
  *   - Event counts are records; people counts use the person registry.
  */
 const db = require("../../db");
-const { splitOptions, INTERVENTION_OPTIONS, BEHAVIORAL_OPTIONS, TIER_OPTIONS } = require("../../db/classify");
+const { splitOptions, INTERVENTION_OPTIONS, BEHAVIORAL_OPTIONS, TIER_OPTIONS, MEDICAL_OPTIONS } = require("../../db/classify");
 
 const FLAGS = {
   f_hospitalization: "Hospitalizations",
+  f_restraint: "Restrictive interventions",
   f_er: "ER visits",
   f_911: "911 calls",
   f_police: "Police involvement",
@@ -38,6 +39,22 @@ function eventWhere({ from, to, site, includeDuplicates } = {}) {
   return { sql: w.join(" AND "), params: p };
 }
 
+/**
+ * Months whose event data looks incomplete: the last event date is more than
+ * 5 days before month end AND the month is the newest in the data (an export
+ * pulled mid-month). Older months are assumed complete.
+ */
+function partialMonths() {
+  const row = db.get(
+    `SELECT event_month AS m, MAX(event_date) AS last FROM event_report
+     WHERE event_month = (SELECT MAX(event_month) FROM event_report) GROUP BY 1`);
+  if (!row) return {};
+  const [y, mo] = row.m.split("-").map(Number);
+  const monthEnd = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const lastDay = Number(row.last.slice(8, 10));
+  return lastDay < monthEnd - 5 ? { [row.m]: row.last } : {};
+}
+
 function months() {
   const ev = db.all("SELECT DISTINCT event_month AS m FROM event_report WHERE event_month IS NOT NULL").map((r) => r.m);
   const bh = db.all("SELECT DISTINCT report_month AS m FROM bh_enrollment").map((r) => r.m);
@@ -59,7 +76,7 @@ function meta() {
       (SELECT COUNT(*) FROM import_batch WHERE is_demo = 1) AS demo_imports,
       (SELECT MAX(imported_at) FROM import_batch) AS last_import`);
   const sites = db.all("SELECT DISTINCT site_home AS s FROM event_report WHERE site_home IS NOT NULL ORDER BY 1").map((r) => r.s);
-  return { months: m, sites, ...counts, hasData: counts.imports > 0, isDemo: counts.demo_imports > 0 };
+  return { months: m, partialMonths: partialMonths(), sites, ...counts, hasData: counts.imports > 0, isDemo: counts.demo_imports > 0 };
 }
 
 // ---- Behavioral Health ------------------------------------------------------
@@ -85,14 +102,17 @@ function bhMonth(month) {
      FROM event_report e
      WHERE e.event_month = ? AND e.is_exact_duplicate = 0
        AND e.person_id IN (SELECT person_id FROM bh_enrollment WHERE report_month = ?)`, [month, month]);
-  const out = { month, op: roster.op, psr: roster.psr, both, bhPeople: roster.total, events: ev.events, reportable: ev.reportable || 0, bhClientEvents: bhClientEvents.events, bhClientsWithEvents: bhClientEvents.people };
+  const out = { month, hasRoster: roster.total > 0, op: roster.op, psr: roster.psr, both, bhPeople: roster.total, events: ev.events, reportable: ev.reportable || 0, bhClientEvents: bhClientEvents.events, bhClientsWithEvents: bhClientEvents.people };
   for (const f of Object.keys(FLAGS)) out[f] = ev[f] || 0;
   return out;
 }
 
 function bhDashboard({ month } = {}) {
   const m = months();
-  const target = month || m.roster[m.roster.length - 1] || m.events[m.events.length - 1];
+  // Default: latest roster month; else the latest COMPLETE month of events.
+  const partial = partialMonths();
+  const complete = m.events.filter((x) => !partial[x]);
+  const target = month || m.roster[m.roster.length - 1] || complete[complete.length - 1] || m.events[m.events.length - 1];
   if (!target) return { month: null, months: m.all, current: null, previous: null, trend: [], flags: FLAGS };
   const trend = m.all.filter((x) => x <= target).slice(-12).map(bhMonth);
   return {
@@ -102,6 +122,8 @@ function bhDashboard({ month } = {}) {
     previous: m.all.includes(prevMonth(target)) ? bhMonth(prevMonth(target)) : null,
     trend,
     flags: FLAGS,
+    partialMonths: partial,
+    hasRoster: m.roster.length > 0,
   };
 }
 
@@ -126,6 +148,7 @@ function incidentsSummary(filters = {}) {
             SUM(CASE WHEN injury_level = 'Serious Injury' THEN 1 ELSE 0 END) AS serious,
             SUM(CASE WHEN event_interventions IS NOT NULL THEN 1 ELSE 0 END) AS with_intervention,
             SUM(CASE WHEN behavioral_psychiatric_events IS NOT NULL THEN 1 ELSE 0 END) AS with_behavioral,
+            SUM(CASE WHEN medical_events IS NOT NULL THEN 1 ELSE 0 END) AS with_medical,
             SUM(CASE WHEN tier_1_events IS NOT NULL THEN 1 ELSE 0 END) AS tier1,
             SUM(CASE WHEN tier_2_events IS NOT NULL THEN 1 ELSE 0 END) AS tier2,
             ${flagSql}
@@ -185,6 +208,7 @@ function incidentsSummary(filters = {}) {
     topSites: groupCount("site_home", where, { limit: 10 }).filter((r) => r.label !== "All other"),
     interventions: optionCounts("event_interventions", INTERVENTION_OPTIONS),
     behavioral: optionCounts("behavioral_psychiatric_events", BEHAVIORAL_OPTIONS),
+    medical: optionCounts("medical_events", MEDICAL_OPTIONS),
     allegations: [...allegations.values()].sort((a, b) => b.n - a.n),
     otherCategories,
     flags: FLAGS,
@@ -231,7 +255,7 @@ function overview() {
     `SELECT kind, COUNT(*) AS imports, MAX(imported_at) AS last_import,
             MAX(COALESCE(report_month, '')) AS last_month, SUM(rows_inserted) AS rows
      FROM import_batch GROUP BY kind`);
-  return { latest, trend, sources, meta: meta() };
+  return { latest, trend, sources, meta: meta(), partialMonths: partialMonths() };
 }
 
 // ---- People ----------------------------------------------------------------
@@ -305,6 +329,6 @@ function bhRoster({ month, service }) {
 }
 
 module.exports = {
-  FLAGS, prevMonth, months, meta, bhDashboard, incidentsSummary, incidentList,
+  FLAGS, prevMonth, months, partialMonths, meta, bhDashboard, incidentsSummary, incidentList,
   overview, peopleList, personDetail, reviewQueue, bhRoster,
 };

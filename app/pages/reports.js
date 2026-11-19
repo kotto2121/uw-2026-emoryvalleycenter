@@ -15,7 +15,7 @@ function RosterReport({ month, service }) {
   const { data, loading } = useAsync(() => api.get(`/api/reports/bh-roster${qs({ month, service: service.key })}`), [month, service.key]);
   const [busy, setBusy] = useState(false);
   const rows = data?.rows || [];
-  const extraCols = [...new Set(rows.flatMap((r) => Object.keys(r.extra)))].filter((c) => !/name/i.test(c)).slice(0, 4);
+  const extraCols = [...new Set(rows.flatMap((r) => Object.keys(r.extra)))].filter((c) => !/name|^section$/i.test(c)).slice(0, 4);
   return (
     <Card className="flush report" title={service.name} subtitle={data ? `${fmt(rows.length)} people · ${fmt(rows.filter((r) => r.isNew).length)} new vs. last month · ${monthLabel(month)}` : " "}
       actions={<Button size="sm" icon="download" busy={busy} className="no-print" onClick={async () => {
@@ -48,6 +48,33 @@ function RosterReport({ month, service }) {
   );
 }
 
+function IncidentWorkbookCard({ meta }) {
+  const months = meta.months.events;
+  const partial = meta.partialMonths || {};
+  const complete = months.filter((m) => !partial[m]);
+  const [from, setFrom] = useState(complete[0] || months[0] || null);
+  const [to, setTo] = useState(complete[complete.length - 1] || months[months.length - 1] || null);
+  const [busy, setBusy] = useState(false);
+  if (!months.length) return null;
+  return (
+    <Card title="Incident report workbook" subtitle="Rebuilds the manual Excel report tabs from the PHS event export — no Word document needed"
+      actions={<Button variant="primary" icon="download" busy={busy} className="no-print" onClick={async () => {
+        setBusy(true);
+        try { await api.download(`/api/reports/incidents.xlsx${qs({ from, to })}`); toast("Incident workbook saved"); } catch (e) { toast(e.message, "bad"); } finally { setBusy(false); }
+      }}>Download (Excel)</Button>}>
+      <div className="mapping" style={{ marginTop: 0 }}>
+        <MonthSelect label="From" months={months} value={from} onChange={setFrom} />
+        <MonthSelect label="To" months={months} value={to} onChange={setTo} />
+        {to && partial[to] && <span className="tag warn"><Icon name="alert" size={11} /> {monthLabel(to)} looks incomplete</span>}
+      </div>
+      <p className="muted" style={{ margin: "12px 0 0", fontSize: 12.5 }}>
+        Sheets: Summary · Month · Site · Individual · Tier 1 · Tier 2 · Behavior · Medical · Other · Reportable · Discovery · Location · Requirements (interventions) · Injury.
+        Every PHS option is listed (zeros included); blanks appear as &ldquo;No Data Reported&rdquo;; exact duplicate rows are excluded.
+      </p>
+    </Card>
+  );
+}
+
 export default function Reports() {
   const router = useRouter();
   const { meta } = useMeta();
@@ -63,8 +90,9 @@ export default function Reports() {
   if (!months.length) {
     return (
       <>
-        <PageHeader eyebrow="Reports" title="Monthly reports" />
-        <Card><Empty icon="file" title="No roster imported yet" actions={<Button variant="primary" icon="upload" onClick={() => router.push("/import")}>Import a BH roster</Button>}>
+        <PageHeader eyebrow="Reports" title="Monthly reports" subtitle="Excel reports built from the imported files." />
+        <IncidentWorkbookCard meta={meta} />
+        <Card><Empty icon="file" title="No behavioral health roster imported yet" actions={<Button variant="primary" icon="upload" onClick={() => router.push("/import")}>Import a BH roster</Button>}>
           The OP and PSR reports are built from the monthly behavioral health roster (Word document).
         </Empty></Card>
       </>
@@ -82,6 +110,7 @@ export default function Reports() {
             try { await api.download(`/api/reports/bh-roster.xlsx${qs({ month })}`); toast("Workbook saved"); } catch (e) { toast(e.message, "bad"); } finally { setBusy(false); }
           }}>Both reports (Excel)</Button>
         </>} />
+      <div className="no-print"><IncidentWorkbookCard meta={meta} /></div>
       <div className="print-only" style={{ marginBottom: 12 }}><strong>Emory Valley Center — Behavioral Health Roster, {monthLabel(month)}</strong></div>
       {month && (
         <div className="grid">

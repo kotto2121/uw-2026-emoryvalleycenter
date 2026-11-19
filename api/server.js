@@ -21,7 +21,7 @@ const { readIncidentWorkbook } = require("./lib/incidents-xlsx");
 const { readDocx, guessRoster, tableEntries } = require("./lib/docx-tables");
 const { importIncidents, importRoster, deleteBatch } = require("./lib/importer");
 const { generateDemoFiles } = require("./lib/demo");
-const { bhRosterWorkbook } = require("./lib/reports");
+const { bhRosterWorkbook, incidentReportWorkbook } = require("./lib/reports");
 const q = require("./lib/queries");
 
 const MAX_UPLOAD = "40mb";
@@ -162,6 +162,16 @@ function createApp({ token, staticDir = null, allowOrigin = null } = {}) {
     if (!month || services.some((s) => !["OP", "PSR"].includes(s))) return res.status(400).json({ error: "bad month/service" });
     const buf = await bhRosterWorkbook({ month, services });
     const name = `BH Roster ${services.join("+")} ${month}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+    res.send(buf);
+  }));
+
+  app.get("/api/reports/incidents.xlsx", h(async (req, res) => {
+    await db.getDb();
+    const f = filtersFrom(req.query);
+    const buf = await incidentReportWorkbook(f);
+    const name = `Incident Report ${f.from || "start"} to ${f.to || "latest"}.xlsx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
     res.send(buf);

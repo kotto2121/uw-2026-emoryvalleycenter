@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Drawer from "../components/Drawer";
 import Icon from "../components/Icon";
 import { useMeta } from "../components/Layout";
-import { Button, Card, Empty, Kpi, MonthSelect, PageHeader, Select, Skeleton, Toggle, useAsync } from "../components/ui";
+import { Button, Card, Empty, Kpi, MonthSelect, PageHeader, PartialMonthNotice, Select, Skeleton, Toggle, useAsync } from "../components/ui";
 import { BarList, TrendBars, SERIES } from "../components/charts";
 import { api, qs } from "../lib/api";
 import { dateLabel, fmt, monthLabel, pct, sameName } from "../lib/format";
@@ -76,6 +76,8 @@ export default function Incidents() {
         <Toggle checked={dups} onChange={setDups} label="Include exact duplicate rows" />
       </div>
 
+      <PartialMonthNotice partialMonths={meta.partialMonths} />
+
       {!s ? <Skeleton h={130} /> : (
         <div className="grid cols-5">
           <Kpi label="Event records" icon="shield" value={t.events} hint={range} accent />
@@ -126,6 +128,17 @@ export default function Incidents() {
             </Card>
             <Card title="Other event types" subtitle="Short PHS categories; free-text entries grouped" delay={0.15}>
               <BarList rows={s.otherCategories} color={SERIES[1]} formatLabel={(l) => l.replace(/^Other - /, "")} />
+            </Card>
+          </div>
+
+          <div className="grid cols-2">
+            <Card title="Medical events" subtitle={`${fmt(t.with_medical)} events · options recovered from the combined PHS field`} delay={0.05}>
+              {s.medical.length ? <BarList rows={s.medical} color={SERIES[2]} total={t.with_medical}
+                formatLabel={(l) => l.replace(/ requiring medical (treatment by a medical professional|intervention)/, "")} />
+                : <p className="muted">None recorded in this export. (Some PHS exports leave this column empty.)</p>}
+            </Card>
+            <Card title="Safety indicators" subtitle="Event records matching each definition (see Behavioral Health for trends)" delay={0.1}>
+              <BarList rows={Object.entries(s.flags).map(([k, label]) => ({ label, n: t[k] || 0 })).sort((a, b) => b.n - a.n)} color={SERIES[2]} total={t.events} />
             </Card>
           </div>
 

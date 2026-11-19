@@ -2,20 +2,21 @@ import { useRouter } from "next/router";
 import { useState } from "react";
 import Icon from "../components/Icon";
 import { useMeta } from "../components/Layout";
-import { Button, Callout, Card, Empty, Kpi, MonthSelect, PageHeader, Skeleton, useAsync } from "../components/ui";
+import { Button, Callout, Card, Empty, Kpi, MonthSelect, PageHeader, PartialMonthNotice, Skeleton, useAsync } from "../components/ui";
 import { SegmentBar, Spark, TrendLines, SERIES } from "../components/charts";
 import { api, qs } from "../lib/api";
 import { fmt, monthLabel } from "../lib/format";
 
-// [flag, label, is a Data Metric Goal, how it's counted]
+// [flag, label, is a Data Metric Goal, how it's counted] — full definitions in docs/metrics.md
 const INDICATORS = [
-  ["f_hospitalization", "Psychiatric admissions", true, "PHS “Psychiatric Admission (for observation)…”. Medical admissions aren’t in the export."],
-  ["f_police", "Police involvement", true, "“Engagement with Law Enforcement” or the “Police” intervention."],
-  ["f_crisis", "Crisis events", true, "“Behavioral Crisis requiring crisis intervention” or “Mobile Crisis Services”."],
-  ["f_property_damage", "Property damage", true, "PHS has no option for this; counted from narrative text only (a minimum)."],
-  ["f_er", "ER visits", false, "“Emergency Room Visit” intervention."],
+  ["f_hospitalization", "Hospitalizations", true, "“Psychiatric Admission…” (behavioral) or a “Hospitalization – Medical/Psychiatric” intervention. ER visits are counted separately."],
+  ["f_police", "Police involvement", true, "“Engagement with Law Enforcement”, the “Police” intervention, or “Incarceration”."],
+  ["f_crisis", "Crisis events", true, "Any “Behavioral Crisis requiring …” option, or Mobile Crisis / MH Mobile Crisis Team involvement."],
+  ["f_property_damage", "Property damage", true, "“Property Destruction exceeding $100”, plus narrative mentions of property damage."],
+  ["f_er", "ER visits", false, "“Emergency Room Visit” or “Hospital Emergency Room”."],
   ["f_911", "911 calls", false, "“911 Call” intervention."],
   ["f_self_injury", "Self-injury / suicide attempt", false, "“Self-Injurious Behavior” or “Suicide Attempt” only."],
+  ["f_restraint", "Restrictive interventions", false, "Manual/mechanical restraint, protective equipment, or emergency psychotropic medication."],
 ];
 
 export default function BehavioralHealth() {
@@ -50,17 +51,26 @@ export default function BehavioralHealth() {
         </>}
       />
 
+      <PartialMonthNotice partialMonths={data.partialMonths} />
+      {c.bhPeople === 0 && (
+        <Callout tone="info" icon="file" title={`No behavioral health roster for ${monthLabel(data.month)}.`}>
+          OP / PSR counts need the monthly roster (Word document) — <a href="#" onClick={(e) => { e.preventDefault(); router.push("/import"); }} style={{ textDecoration: "underline" }}>import it</a>. The crisis &amp; safety indicators below come from the PHS event report and cover <strong>everyone</strong> in it, not only BH clients.
+        </Callout>
+      )}
+
       <div className="grid cols-4">
-        <Kpi label="People in OP" icon="user" value={c.op} previous={p.op} goodDirection="up" accent />
-        <Kpi label="People in PSR" icon="users" value={c.psr} previous={p.psr} goodDirection="up" delay={0.05} />
-        <Kpi label="Receiving both" icon="merge" value={c.both} previous={p.both} delay={0.1} />
-        <Kpi label="BH clients with an incident" icon="shield" value={c.bhClientsWithEvents} previous={p.bhClientsWithEvents} goodDirection="down" delay={0.15}
+        <Kpi label="People in OP" icon="user" value={c.bhPeople ? c.op : null} previous={c.bhPeople ? p.op : null} goodDirection="up" accent />
+        <Kpi label="People in PSR" icon="users" value={c.bhPeople ? c.psr : null} previous={c.bhPeople ? p.psr : null} goodDirection="up" delay={0.05} />
+        <Kpi label="Receiving both" icon="merge" value={c.bhPeople ? c.both : null} previous={c.bhPeople ? p.both : null} delay={0.1} />
+        <Kpi label="BH clients with an incident" icon="shield" value={c.bhPeople ? c.bhClientsWithEvents : null} previous={c.bhPeople ? p.bhClientsWithEvents : null} goodDirection="down" delay={0.15}
           onClick={() => router.push("/incidents")} />
       </div>
 
       <div className="grid cols-2-1">
-        <Card title="Enrollment trend" subtitle="Distinct people on each roster by month" delay={0.1}>
-          <TrendLines data={data.trend} series={[{ key: "op", label: "Outpatient (OP)", color: SERIES[0] }, { key: "psr", label: "PSR", color: SERIES[1] }]} />
+        <Card title="Enrollment trend" subtitle="Distinct people on each roster, for months with a roster imported" delay={0.1}>
+          {data.trend.filter((t) => t.hasRoster).length ? (
+            <TrendLines data={data.trend.filter((t) => t.hasRoster)} series={[{ key: "op", label: "Outpatient (OP)", color: SERIES[0] }, { key: "psr", label: "PSR", color: SERIES[1] }]} />
+          ) : <p className="muted">No roster imported yet — enrollment trends appear once monthly rosters are imported.</p>}
         </Card>
         <Card title="Service mix" subtitle={`${fmt(c.bhPeople)} distinct BH clients in ${monthLabel(data.month)}`} delay={0.15}>
           <SegmentBar parts={[

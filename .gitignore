@@ -30,3 +30,6 @@ imports/
 *.real.xlsx
 *.real.docx
 dist/
+
+# Rosters generated from (de-identified) real exports — never commit
+demo-data/from-export/

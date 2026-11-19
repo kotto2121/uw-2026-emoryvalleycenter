@@ -12,6 +12,8 @@ A **local-first desktop dashboard** for Emory Valley Center (EVC). It runs entir
 
 It also ships with **six months of fictitious demo data** that statistically mirrors the real PHS export (see `api/lib/demo.js`).
 
+> **Full documentation is in [`docs/`](docs/README.md):** the user guide, metric definitions, how the parsers work, person matching, architecture, privacy, the developer guide, limitations and troubleshooting.
+
 ## Architecture
 
 ```
@@ -22,7 +24,8 @@ electron/        main process: splash → local API → main window
 api/             Express API (127.0.0.1 only, token required on /api/*)
   server.js      routes (documented in api/README.md)
   lib/           incidents-xlsx.js (Excel reader), docx-tables.js (Word table reader),
-                 importer.js, queries.js (dashboards), reports.js (Excel export), demo.js
+                 importer.js, queries.js (dashboards), reports.js (Excel export), demo.js,
+                 xlsx-read.js (tolerant .xlsx reader)
 db/              SQLite via sql.js (pure WASM — no native build tools)
   index.js       schema, atomic saves, automatic backups
   names.js       name parsing, nicknames, Jaro–Winkler similarity
@@ -32,7 +35,8 @@ app/             Next.js (pages router) static export → app/out
   components/    Layout (sidebar/topbar), charts, KPI tiles, drawer, icons, logo
   pages/         index (Overview), behavioral-health, incidents, import, review,
                  people, reports, programs (roadmap), settings
-docs/            chatgpt-prompt.md — prompts to run on EVC's ChatGPT (structure only, no PHI)
+docs/            user guide, metrics, parsing, matching, architecture, privacy, dev guide, limitations;
+                 chatgpt-prompt.md + chatgpt-outputs/ (structure-only analysis of real files)
 demo-data/       generated fictitious files for testing the import flow
 ```
 

@@ -343,4 +343,4 @@ async function generateDemoFiles({ months = demoMonths(), seed = 2026 } = {}) {
   return { incidents, rosters, population };
 }
 
-module.exports = { generateDemoFiles, demoMonths, monthLabel };
+module.exports = { generateDemoFiles, demoMonths, monthLabel, rosterDocx, rng, PSR_STAFF, OP_STAFF, FREQS };

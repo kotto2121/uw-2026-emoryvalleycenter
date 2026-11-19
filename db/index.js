@@ -156,8 +156,18 @@ async function getDb() {
   db = fs.existsSync(file) ? new SQL.Database(fs.readFileSync(file)) : new SQL.Database();
   db.run("PRAGMA foreign_keys = ON;");
   db.run(SCHEMA);
+  migrate();
   reclassifyIfNeeded();
   return db;
+}
+
+/** Add any flag column that db/classify.js defines but the stored table lacks. */
+function migrate() {
+  const { FLAG_PATTERNS } = require("./classify");
+  const have = new Set(all("PRAGMA table_info(event_report)").map((c) => c.name));
+  for (const flag of Object.keys(FLAG_PATTERNS)) {
+    if (!have.has(flag)) db.run(`ALTER TABLE event_report ADD COLUMN ${flag} INTEGER NOT NULL DEFAULT 0`);
+  }
 }
 
 /**
