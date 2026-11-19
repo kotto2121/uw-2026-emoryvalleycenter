@@ -1,0 +1,1 @@
+git diff --stat api/lib/importer.js api/lib/incidents-xlsx.js && echo "---DIFF---" && git diff api/lib/importer.js api/lib/incidents-xlsx.js | head -200

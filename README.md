@@ -34,10 +34,12 @@ db/              SQLite via sql.js (pure WASM — no native build tools)
 app/             Next.js (pages router) static export → app/out
   components/    Layout (sidebar/topbar), charts, KPI tiles, drawer, icons, logo
   pages/         index (Overview), behavioral-health, incidents, import, review,
-                 people, reports, programs (roadmap), settings
+                 people, reports, programs (roadmap), settings — see app/README.md
 docs/            user guide, metrics, parsing, matching, architecture, privacy, dev guide, limitations;
                  chatgpt-prompt.md + chatgpt-outputs/ (structure-only analysis of real files)
 demo-data/       generated fictitious files for testing the import flow
+
+**Docs:** routes + running the API standalone → [`api/README.md`](api/README.md) · frontend pages & wiring → [`app/README.md`](app/README.md)
 ```
 
 ### Privacy and security model

@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS event_report (
   site_home                       TEXT,
   injury_description              TEXT,
   injury_level                    TEXT,
+  extra_fields                    TEXT,   -- JSON: accepted-but-unmapped columns ('{}' if none)
   -- derived flags (see db/classify.js); recomputed on import
   is_reportable       INTEGER,
   f_911               INTEGER NOT NULL DEFAULT 0,
@@ -124,6 +125,15 @@ CREATE INDEX IF NOT EXISTS ix_event_person ON event_report(person_id);
 CREATE TABLE IF NOT EXISTS app_meta (
   key   TEXT PRIMARY KEY,
   value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS column_mappings (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  program       TEXT NOT NULL,             -- program key, e.g. 'phs_incidents'
+  field         TEXT NOT NULL,             -- canonical field name, e.g. 'event_date'
+  alias         TEXT NOT NULL,             -- accepted spreadsheet header (squashed for lookup)
+  required      INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (program, alias)
 );
 
 CREATE TABLE IF NOT EXISTS bh_enrollment (
@@ -157,6 +167,13 @@ async function getDb() {
   db.run("PRAGMA foreign_keys = ON;");
   db.run(SCHEMA);
   migrate();
+  // Idempotent migration: add extra_fields to event_report for DBs created
+  // before the column existed. CREATE TABLE IF NOT EXISTS covers fresh DBs.
+  const hasExtra = all(
+    "SELECT 1 FROM pragma_table_info('event_report') WHERE name = 'extra_fields'"
+  );
+  if (!hasExtra.length) db.run("ALTER TABLE event_report ADD COLUMN extra_fields TEXT;");
+  seedColumnMappings();
   reclassifyIfNeeded();
   return db;
 }
@@ -167,6 +184,31 @@ function migrate() {
   const have = new Set(all("PRAGMA table_info(event_report)").map((c) => c.name));
   for (const flag of Object.keys(FLAG_PATTERNS)) {
     if (!have.has(flag)) db.run(`ALTER TABLE event_report ADD COLUMN ${flag} INTEGER NOT NULL DEFAULT 0`);
+  }
+}
+
+/**
+ * Seed column_mappings from the parser's default FIELDS so behavior is
+ * identical out of the box. Idempotent: INSERT OR IGNORE on (program, alias),
+ * so user-added mappings are never touched and re-running never duplicates.
+ */
+function seedColumnMappings() {
+  const { FIELDS, REQUIRED } = require("../api/lib/incidents-xlsx");
+  db.run("BEGIN");
+  try {
+    for (const [field, names] of FIELDS) {
+      for (const n of names) {
+        db.run(
+          "INSERT OR IGNORE INTO column_mappings (program, field, alias, required) VALUES (?, ?, ?, ?)",
+          ["phs_incidents", field, squash(n), REQUIRED.includes(field) ? 1 : 0]
+        );
+      }
+    }
+    db.run("COMMIT");
+    persist();
+  } catch (err) {
+    db.run("ROLLBACK");
+    throw err;
   }
 }
 
@@ -194,6 +236,8 @@ function reclassifyIfNeeded() {
   }
   if (rows.length) persist();
 }
+
+const squash = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
  * Write the in-memory database back to disk atomically: write a temp file,

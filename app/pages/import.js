@@ -162,10 +162,108 @@ function RosterPreview({ preview, file, onDone, onCancel }) {
   );
 }
 
+function IncidentReview({ analysis, file, onDone, onCancel }) {
+  // decisions: header -> { action: 'map'|'new'|'ignore', field, remember }
+  const [decisions, setDecisions] = useState(() =>
+    Object.fromEntries((analysis.unknownHeaders || []).map((u) => [u.header, { action: "ignore", field: "", remember: true }]))
+  );
+  const [busy, setBusy] = useState(false);
+  const set = (header, patch) => setDecisions((d) => ({ ...d, [header]: { ...d[header], ...patch } }));
+
+  async function commit() {
+    setBusy(true);
+    try {
+      const payload = (analysis.unknownHeaders || []).map((u) => ({ header: u.header, ...decisions[u.header] }));
+      const r = await api.post(`/api/imports/${analysis.uploadId}/commit`, { decisions: payload });
+      onDone(r);
+    } catch (e) {
+      toast(e.message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function decisionsFor(field) {
+    return (analysis.unknownHeaders || []).filter((u) => decisions[u.header]?.action === "map" && decisions[u.header]?.field === field);
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 14 }}>
+      <Callout tone="warn" icon="sparkle" title="New columns found in this file.">
+        We found {analysis.unknownHeaders.length} column{analysis.unknownHeaders.length === 1 ? "" : "s"} in <strong>{file.name}</strong> that aren&rsquo;t part of the usual PHS layout. Choose what to do with each before importing.
+      </Callout>
+      {analysis.unknownHeaders.map((u) => {
+        const d = decisions[u.header];
+        return (
+          <div key={u.header} style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <strong>“{u.header}”</strong>
+              <div className="mapping" style={{ marginTop: 0 }}>
+                <label className="select"><span className="select-label">Action</span>
+                  <select value={d.action} onChange={(e) => set(u.header, { action: e.target.value })}>
+                    <option value="ignore">Ignore this column</option>
+                    <option value="map">It&rsquo;s one of the known fields</option>
+                    <option value="new">Keep as a new field</option>
+                  </select>
+                  <Icon name="chevronDown" size={14} />
+                </label>
+                {d.action === "map" && (
+                  <label className="select"><span className="select-label">Field</span>
+                    <select value={d.field} onChange={(e) => set(u.header, { field: e.target.value })}>
+                      <option value="">Choose a field…</option>
+                      {analysis.knownFields.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                    <Icon name="chevronDown" size={14} />
+                  </label>
+                )}
+                {d.action === "new" && (
+                  <label className="select"><span className="select-label">Field name</span>
+                    <input className="input" placeholder="e.g. transport_notes" value={d.field}
+                      onChange={(e) => set(u.header, { field: e.target.value })} />
+                  </label>
+                )}
+              </div>
+            </div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              Sample values: {u.samples.length ? u.samples.map((s) => `“${String(s)}”`).join(", ") : "(all blank in the first rows)"}
+            </div>
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, marginTop: 6 }}>
+              <input type="checkbox" checked={d.remember} onChange={(e) => set(u.header, { remember: e.target.checked })} />
+              Remember this choice for future PHS files
+            </label>
+          </div>
+        );
+      })}
+      {analysis.missingRequired?.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <Callout tone="warn">
+            {analysis.missingRequired.map((f) => {
+              const mapped = decisionsFor(f).length > 0;
+              return <span key={f} style={{ marginRight: 12 }}>{mapped ? "✓" : "•"} <strong>{f}</strong> is required — {mapped ? "mapped below." : "map one of the unknown columns to it, or the import can’t run."}</span>;
+            })}
+          </Callout>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="primary" icon="check" busy={busy}
+          disabled={analysis.missingRequired?.some((f) => decisionsFor(f).length === 0) || (analysis.unknownHeaders || []).some((u) => {
+            const d = decisions[u.header];
+            return d.action !== "ignore" && !d.field;
+          })}
+          onClick={commit}>
+          Import {fmt(analysis.rowsRead)} event rows
+        </Button>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function ImportCenter() {
   const { meta, refresh } = useMeta();
   const [incBusy, setIncBusy] = useState(false);
   const [incResult, setIncResult] = useState(null);
+  const [incReview, setIncReview] = useState(null); // { analysis, file } when unknown columns need review
   const [rosBusy, setRosBusy] = useState(false);
   const [preview, setPreview] = useState(null);
   const [rosResult, setRosResult] = useState(null);
@@ -175,8 +273,14 @@ export default function ImportCenter() {
     if (!/\.xlsx$/i.test(file.name)) return toast("Please choose an .xlsx file (Excel workbook).", "bad");
     setIncBusy(true);
     setIncResult(null);
+    setIncReview(null);
     try {
-      const r = await api.upload("/api/import/incidents", file);
+      const analysis = await api.upload("/api/imports/analyze", file);
+      if (analysis.unknownHeaders?.length) {
+        setIncReview({ analysis, file });
+        return;
+      }
+      const r = await api.post(`/api/imports/${analysis.uploadId}/commit`, { decisions: [] });
       setIncResult(r);
       await refresh();
       toast(`Imported ${fmt(r.inserted)} event records.`);
@@ -220,6 +324,9 @@ export default function ImportCenter() {
       <div className="grid cols-2">
         <Card title="PHS event report" subtitle="“New Reportable Event Report” exported from Practical Health Systems (.xlsx)">
           <Dropzone accept=".xlsx" icon="database" title="Drop the Excel export here" hint="or click to browse · .xlsx" busy={incBusy} onFile={importIncidents} />
+          {incReview && <IncidentReview analysis={incReview.analysis} file={incReview.file}
+            onCancel={() => setIncReview(null)}
+            onDone={async (r) => { setIncReview(null); setIncResult(r); await refresh(); toast(`Imported ${fmt(r.inserted)} event records.`); }} />}
           <AnimatePresence>{incResult && <IncidentResult r={incResult} />}</AnimatePresence>
         </Card>
         <Card title="Behavioral health roster" subtitle="The monthly Word document listing OP and PSR clients (.docx)" delay={0.05}>

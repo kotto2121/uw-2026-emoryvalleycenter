@@ -13,8 +13,12 @@
  * sheet is scanned for the event-report header row; the sheet with the most
  * data rows wins and the others are reported as warnings — never imported
  * too, which would double-count.
+ *
+ * Column aliases can also come from the database (column_mappings, managed
+ * through the Import Center's unknown-column review); see opts.mappings.
  */
 const { readWorkbook } = require("./xlsx-read");
+const { normalizeValue } = require("../../db/normalize");
 
 const FIELDS = [
   ["event_date", ["Date Of Event", "event_date", "Event Date"]],
@@ -36,8 +40,22 @@ const FIELDS = [
 const REQUIRED = ["event_date", "member_full_name"];
 
 const squash = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-const HEADER_LOOKUP = new Map();
-for (const [field, names] of FIELDS) for (const n of names) HEADER_LOOKUP.set(squash(n), field);
+
+/**
+ * Build a lookup map from squashed header -> canonical field, given mappings.
+ * Mappings shape (both sources produce this):
+ *   - DB:  [{ field, alias }]   (alias pre-squashed)
+ *   - default: FIELDS           ([[field, [names...]], ...])
+ */
+function buildLookup(mappings) {
+  const lookup = new Map();
+  if (Array.isArray(mappings) && mappings.length && Array.isArray(mappings[0])) {
+    for (const [field, names] of mappings) for (const n of names) lookup.set(squash(n), field);
+  } else {
+    for (const m of mappings || []) lookup.set(squash(m.alias), m.field);
+  }
+  return lookup;
+}
 
 function cellText(v) {
   if (v === null || v === undefined) return null;
@@ -51,15 +69,11 @@ function cellText(v) {
   return v;
 }
 
-// Placeholders used in hand-edited copies of the export; they mean "blank".
-const PLACEHOLDER_RE = /^\*?\s*no data reported$/i;
-
 function clean(v) {
-  v = cellText(v);
-  if (v === null || v === undefined) return null;
-  if (v instanceof Date) return v;
-  const s = String(v).replace(/\u00a0/g, " ").trim();
-  return s === "" || PLACEHOLDER_RE.test(s) ? null : s;
+  // Normalize via the shared layer (db/normalize.js) BEFORE hashing/import so
+  // sentinel variants (NA / n/a / "No Data Reported" / '-' ...) collapse to
+  // null and re-import dedupe hashes normalized values.
+  return normalizeValue(cellText(v));
 }
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -88,37 +102,47 @@ function parseDate(v) {
 }
 
 /**
- * Parse the workbook buffer.
- * @returns {{ rows: object[], warnings: string[], sheet: string, unmappedHeaders: string[] }}
+ * Find the header row (first 15 rows) of one sheet; null if it isn't an event report.
+ * With requireAll=false a sheet missing required columns still qualifies (the
+ * analyze/commit flow lets the user map them), but sheets that have them rank first.
  */
-/** Find the header row (first 15 rows) of one sheet; null if it isn't an event report. */
-function findHeader(rows) {
+function findHeader(rows, lookup, requireAll) {
   for (let r = 0; r < Math.min(15, rows.length); r++) {
     const map = {};
     let hits = 0;
     (rows[r] || []).forEach((v, c) => {
-      const field = HEADER_LOOKUP.get(squash(cellText(v)));
+      const field = lookup.get(squash(cellText(v)));
       if (field && !Object.values(map).includes(field)) {
         map[c] = field;
         hits++;
       }
     });
-    if (hits >= 3 && REQUIRED.every((f) => Object.values(map).includes(f))) return { headerRow: r, map, hits };
+    const hasRequired = REQUIRED.every((f) => Object.values(map).includes(f));
+    if (hits >= 3 && (hasRequired || !requireAll)) return { headerRow: r, map, hits, hasRequired };
   }
   return null;
 }
 
 /**
  * Parse the workbook buffer.
- * @returns {{ rows: object[], warnings: string[], sheet: string, unmappedHeaders: string[] }}
+ * @param {Buffer} buffer
+ * @param {object} [opts]
+ * @param {Array}  [opts.mappings]  DB mappings [{ field, alias }] — defaults to FIELDS
+ * @param {boolean} [opts.require]  throw on missing required columns (default true for
+ *                                  backward compat; the analyze/commit flow passes false)
+ * @returns {{ rows: object[], warnings: string[], sheet: string, unmappedHeaders: string[],
+ *            unknownHeaders: {header:string, samples:any[]}[], missingRequired: string[] }}
  */
-async function readIncidentWorkbook(buffer) {
+async function readIncidentWorkbook(buffer, opts = {}) {
+  const { mappings, require: requireMissing = true } = opts;
+  const lookup = buildLookup(mappings && mappings.length ? mappings : FIELDS);
+  const knownFields = new Set(lookup.values());
   const { sheets } = await readWorkbook(buffer);
   const warnings = [];
 
   const candidates = [];
   for (const ws of sheets) {
-    const h = findHeader(ws.rows);
+    const h = findHeader(ws.rows, lookup, requireMissing);
     if (!h) continue;
     const dataRows = ws.rows.slice(h.headerRow + 1).filter((r) => r.some((v) => clean(v) !== null)).length;
     candidates.push({ ws, ...h, dataRows });
@@ -129,22 +153,46 @@ async function readIncidentWorkbook(buffer) {
       { status: 422 }
     );
   }
-  // Most data rows wins; ties go to the sheet with more recognised columns.
-  candidates.sort((a, b) => b.dataRows - a.dataRows || b.hits - a.hits);
+  // Sheets with the required columns first; then most data rows; then most recognised columns.
+  candidates.sort((x, y) => (y.hasRequired - x.hasRequired) || y.dataRows - x.dataRows || y.hits - x.hits);
   const { ws, headerRow, map } = candidates[0];
   for (const other of candidates.slice(1)) {
     warnings.push(`Sheet "${other.ws.name}" also looks like event data (${other.dataRows} rows) but was NOT imported — only "${ws.name}" was, to avoid double-counting.`);
   }
 
   const mapped = new Set(Object.values(map));
-  const unmappedHeaders = (ws.rows[headerRow] || []).map((v, c) => (map[c] || v === null || v === undefined || v === "" ? null : String(v))).filter(Boolean);
+  const missingRequired = REQUIRED.filter((f) => !mapped.has(f));
+  if (missingRequired.length && requireMissing) {
+    throw Object.assign(
+      new Error(`Sheet "${ws.name}" is missing required column(s): ${missingRequired.join(", ")}`),
+      { status: 422 }
+    );
+  }
+
+  // Unknown headers: not mapped to any field — collected with sample values so
+  // the review UI can let the user map / accept / ignore them.
+  const unknownHeaders = [];
+  const unmappedHeaders = [];
+  (ws.rows[headerRow] || []).forEach((v, c) => {
+    if (map[c]) return;
+    const header = String(cellText(v) ?? "").trim();
+    if (!header) return;
+    unmappedHeaders.push(header);
+    const samples = [];
+    for (let r = headerRow + 1; r < Math.min(ws.rows.length, headerRow + 6) && samples.length < 3; r++) {
+      const val = clean((ws.rows[r] || [])[c]);
+      if (val !== null) samples.push(val instanceof Date ? parseDate(val) : val);
+    }
+    unknownHeaders.push({ header, samples });
+  });
   for (const [field, names] of FIELDS) {
-    if (!mapped.has(field)) warnings.push(`Column "${names[0]}" not found — left blank.`);
+    if (!mapped.has(field) && knownFields.has(field)) warnings.push(`Column "${names[0]}" not found — left blank.`);
   }
 
   const rows = [];
   let badDates = 0;
   let hidden = 0;
+  const allFields = new Set([...FIELDS.map(([f]) => f), ...knownFields]);
   for (let r = headerRow + 1; r < ws.rows.length; r++) {
     const src = ws.rows[r] || [];
     const rec = {};
@@ -160,7 +208,7 @@ async function readIncidentWorkbook(buffer) {
     const rawDate = rec.event_date;
     rec.event_date = parseDate(rawDate);
     if (rawDate && !rec.event_date) badDates++;
-    for (const [field] of FIELDS) {
+    for (const field of allFields) {
       if (!(field in rec)) rec[field] = null;
       if (rec[field] instanceof Date) rec[field] = parseDate(rec[field]);
     }
@@ -168,7 +216,7 @@ async function readIncidentWorkbook(buffer) {
   }
   if (badDates) warnings.push(`${badDates} row(s) had a date that could not be read; they are kept but won't appear in monthly counts.`);
   if (hidden) warnings.push(`${hidden} row(s) were hidden by an Excel filter. All rows are imported regardless of filters.`);
-  return { rows, warnings, sheet: ws.name, unmappedHeaders };
+  return { rows, warnings, sheet: ws.name, unmappedHeaders, unknownHeaders, missingRequired };
 }
 
-module.exports = { readIncidentWorkbook, parseDate, FIELDS };
+module.exports = { readIncidentWorkbook, parseDate, FIELDS, REQUIRED, buildLookup, squash };

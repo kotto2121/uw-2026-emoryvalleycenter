@@ -36,6 +36,7 @@ function unrecognizedOptions(rows) {
   }
   return out.sort((a, b) => b.rows - a.rows);
 }
+const { normalizeValue } = require("../../db/normalize");
 const { FIELDS } = require("./incidents-xlsx");
 
 const FIELD_NAMES = FIELDS.map(([f]) => f);
@@ -75,12 +76,14 @@ function importIncidents({ rows, filename, isDemo = false, warnings: initialWarn
       const flags = computeFlags(rec);
       const month = rec.event_date ? rec.event_date.slice(0, 7) : null;
       if (month) months.add(month);
+      const extra = rec.extra_fields && Object.keys(rec.extra_fields).length
+        ? JSON.stringify(rec.extra_fields) : null;
       const cols = [
-        "batch_id", "row_hash", "is_exact_duplicate", "person_id", "event_month",
+        "batch_id", "row_hash", "is_exact_duplicate", "person_id", "event_month", "extra_fields",
         ...FIELD_NAMES, ...Object.keys(flags),
       ];
       const vals = [
-        batchId, rowHash, n > 1 ? 1 : 0, personId, month,
+        batchId, rowHash, n > 1 ? 1 : 0, personId, month, extra,
         ...FIELD_NAMES.map((f) => rec[f] ?? null), ...Object.values(flags),
       ];
       db.run(
@@ -130,13 +133,21 @@ function importRoster({ entries, month, filename, isDemo = false }) {
     let skipped = 0;
     const byService = { OP: 0, PSR: 0 };
     for (const e of entries) {
-      const name = String(e.name || "").trim();
+      // Shared normalization layer (db/normalize.js): sentinel spellings
+      // ('n/a', '-', 'none'...) in roster cells collapse to null and get
+      // skipped, same rule set as the incident xlsx path.
+      const name = normalizeValue(e.name);
+      const extra = e.extra
+        ? Object.fromEntries(
+            Object.entries(e.extra).map(([k, v]) => [k, typeof v === "string" ? normalizeValue(v) : v])
+          )
+        : {};
       if (!name || !["OP", "PSR"].includes(e.service)) continue;
       const personId = resolver.resolve(name);
       const r = db.run(
         `INSERT OR IGNORE INTO bh_enrollment (batch_id, person_id, raw_name, service, report_month, extra_json)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [batchId, personId, name, e.service, month, JSON.stringify(e.extra || {})]
+        [batchId, personId, name, e.service, month, JSON.stringify(extra)]
       );
       if (r.changes) {
         inserted++;
