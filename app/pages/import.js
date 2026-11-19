@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import { useMeta } from "../components/Layout";
 import { Button, Callout, Card, PageHeader, toast, useAsync } from "../components/ui";
@@ -175,6 +175,14 @@ function IncidentReview({ analysis, file, onReanalyze, onDone, onCancel }) {
   const [decisions, setDecisions] = useState(() =>
     Object.fromEntries((analysis.unknownHeaders || []).map((u) => [u.header, { action: "ignore", field: "", remember: true }]))
   );
+  // Keep decisions in sync when a header-row re-analysis produces new unknownHeaders.
+  useEffect(() => {
+    setDecisions((d) => {
+      const missing = (analysis.unknownHeaders || []).filter((u) => !d[u.header]);
+      if (!missing.length) return d;
+      return { ...d, ...Object.fromEntries(missing.map((u) => [u.header, { action: "ignore", field: "", remember: true }])) };
+    });
+  }, [analysis]);
   const [busy, setBusy] = useState(false);
   const set = (header, patch) => setDecisions((d) => ({ ...d, [header]: { ...d[header], ...patch } }));
 
@@ -246,7 +254,8 @@ function IncidentReview({ analysis, file, onReanalyze, onDone, onCancel }) {
         We found {analysis.unknownHeaders.length} column{analysis.unknownHeaders.length === 1 ? "" : "s"} in <strong>{file.name}</strong> that aren&rsquo;t part of the usual PHS layout. Choose what to do with each before importing.
       </Callout>
       {analysis.unknownHeaders.map((u) => {
-        const d = decisions[u.header];
+        // Guard: after a header-row re-analysis, decisions may not have an entry for a new header yet.
+        const d = decisions[u.header] || { action: "ignore", field: "", remember: true };
         return (
           <div key={u.header} style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
@@ -301,7 +310,7 @@ function IncidentReview({ analysis, file, onReanalyze, onDone, onCancel }) {
         <Button onClick={onCancel}>Cancel</Button>
         <Button variant="primary" icon="check" busy={busy}
           disabled={analysis.missingRequired?.some((f) => decisionsFor(f).length === 0) || (analysis.unknownHeaders || []).some((u) => {
-            const d = decisions[u.header];
+            const d = decisions[u.header] || { action: "ignore", field: "" };
             return d.action !== "ignore" && !d.field;
           })}
           onClick={commit}>
