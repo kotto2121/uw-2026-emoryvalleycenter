@@ -1,0 +1,61 @@
+- id: ref_cd1b4e9a
+  created_at: 2026-11-19T18:49:58.134Z
+  source_episode: |-
+    ses_4913655c · Global sentinel norm
+     ▒▒▒▒▒░░░░░  importer.js ██░░░░
+     ▒▒▒▒▒░░░░░  incidents-xlsx.js ██░░░░
+     ▒▒▒▒▒░░░░░  normalize.js ██░░░░
+     shape: ▓▓ST▓▓T▓T▒
+     tools: files.read×12 files.edit×4 tasks.done×3 search×2 ex…
+     tasks: ██████████ 3/3
+  category: patterns
+  content: Normalize values BEFORE computing row hashes during import. This
+    ensures dedupe works correctly even when source data uses cosmetic sentinel
+    variants (NA vs n/a vs N/A), since all variants collapse to the same hash
+    input.
+  tags:
+    - dedupe
+    - hashing
+    - normalization
+    - ingest
+  superseded_by: null
+- id: ref_e4689a3c
+  created_at: 2026-11-19T19:20:03.431Z
+  source_episode: |-
+    ses_724f0fd1 · Graceful schema-disc
+     ▒▒▒▒▒░░░░░  incidents-xlsx.js ██░░░░
+     ▒▒▒▒▒░░░░░  server.js ██░░░░
+     ▒▒▒▒▒░░░░░  import.js ██░░░░
+     shape: ▓S▓TTT▓TT▓
+     tools: files.script×16 files.read×15 files.edit×12 tasks.d…
+     tasks: ████████░░ 5/6
+  category: patterns
+  content: "Schema alias learning creates a self-improving import loop:
+    human-resolved column mappings persist as aliases in the database, so
+    re-analyzing a previously unknown file variant automatically achieves 'full'
+    confidence with zero intervention."
+  tags:
+    - import
+    - alias-learning
+    - schema-discovery
+    - mappings
+  superseded_by: null
+- id: ref_8e32c093
+  created_at: 2026-11-19T19:26:50.794Z
+  source_episode: |-
+    ses_f403c4af · Add docs/build-windo
+     ▒▒▒▒▒░░░░░  README.md ███░░░
+     ▒▒▒▒▒░░░░░  build-windows.md ███░░░
+     shape: ▒▒▒STT▒▒▒T
+     tools: explore×6 tasks.done×3 files.edit×2 files.read×2 ru…
+     tasks: ██████████ 3/3
+  category: patterns
+  content: When documenting build commands, always verify every command matches
+    package.json scripts and CI workflow files verbatim rather than relying on
+    memory. This prevents docs from drifting out of sync with actual build
+    tooling.
+  tags:
+    - documentation
+    - build
+    - verification
+  superseded_by: null

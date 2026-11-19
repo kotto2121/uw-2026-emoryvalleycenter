@@ -1,0 +1,134 @@
+{
+ "version": 1,
+ "nodes": {
+  "eps_d5e60d34": {
+   "episodeId": "eps_d5e60d34",
+   "sessionId": "ses_4913655c",
+   "memoryFile": "ses_ses_4913655c_2026-11-19T18-4_global-sentinel-normalization-layer-collapsing-na-n-a-n-a-va.md",
+   "timestamp": "2026-11-19T18:47:01.378Z",
+   "files": [
+    "...normalization-layer-collapsing-na-n-a-n-a-va.md",
+    ".output/tmp/test-normalize.js",
+    ".output/tmp/verify-normalize-e2e.js",
+    "api/lib/importer.js",
+    "api/lib/incidents-xlsx.js",
+    "db/normalize.js"
+   ],
+   "classification": "notable"
+  },
+  "eps_521a770f": {
+   "episodeId": "eps_521a770f",
+   "sessionId": "ses_724f0fd1",
+   "memoryFile": "ses_ses_724f0fd1_2026-11-19T19-1_graceful-schema-discovery-xlsx-import-confidence-grading-ori.md",
+   "timestamp": "2026-11-19T19:12:05.769Z",
+   "files": [
+    "...discovery-xlsx-import-confidence-grading-ori.md",
+    ".output/tmp/script-1795115616807.sh",
+    ".output/tmp/script-1795115624541.sh",
+    ".output/tmp/script-1795115630524.sh",
+    ".output/tmp/script-1795115638386.sh",
+    ".output/tmp/script-1795115683154.sh",
+    ".output/tmp/script-1795115732676.sh",
+    ".output/tmp/script-1795115859467.sh",
+    ".output/tmp/script-1795115863427.sh",
+    ".output/tmp/script-1795115869612.sh",
+    ".output/tmp/script-1795115872533.sh",
+    ".output/tmp/script-1795115880784.sh",
+    ".output/tmp/script-1795115888510.sh",
+    ".output/tmp/script-1795115900784.sh",
+    ".output/tmp/script-1795115905142.sh",
+    ".output/tmp/script-1795115961877.sh"
+   ],
+   "classification": "notable"
+  },
+  "eps_37f55444": {
+   "episodeId": "eps_37f55444",
+   "sessionId": "ses_f403c4af",
+   "memoryFile": "ses_ses_f403c4af_2026-11-19T19-1_add-docs-build-windows-md-and-condense-readme-build-section.md",
+   "timestamp": "2026-11-19T19:18:19.445Z",
+   "files": [
+    "...discovery-xlsx-import-confidence-grading-ori.md",
+    ".output/tmp/script-1795115616807.sh",
+    ".output/tmp/script-1795115624541.sh",
+    ".output/tmp/script-1795115630524.sh",
+    ".output/tmp/script-1795115638386.sh",
+    ".output/tmp/script-1795115683154.sh",
+    ".output/tmp/script-1795115732676.sh",
+    ".output/tmp/script-1795115859467.sh",
+    ".output/tmp/script-1795115863427.sh",
+    ".output/tmp/script-1795115869612.sh",
+    ".output/tmp/script-1795115872533.sh",
+    ".output/tmp/script-1795115880784.sh",
+    ".output/tmp/script-1795115888510.sh",
+    ".output/tmp/script-1795115900784.sh",
+    ".output/tmp/script-1795115905142.sh",
+    ".output/tmp/script-1795115961877.sh"
+   ],
+   "classification": "notable"
+  },
+  "eps_b3fdd6c5": {
+   "episodeId": "eps_b3fdd6c5",
+   "sessionId": "ses_724f0fd1",
+   "memoryFile": "ses_ses_724f0fd1_2026-11-19T19-3_guard-decisions-lookups-and-sync-state-after-header-row-re-a.md",
+   "timestamp": "2026-11-19T19:30:11.674Z",
+   "files": [
+    "...lookups-and-sync-state-after-header-row-re-a.md",
+    "app/pages/import.js"
+   ],
+   "classification": "notable"
+  },
+  "eps_594c19da": {
+   "episodeId": "eps_594c19da",
+   "sessionId": "ses_724f0fd1",
+   "memoryFile": "ses_ses_724f0fd1_2026-11-19T19-3_guard-decisions-lookups-and-sync-state-after-header-row-re-a.md",
+   "timestamp": "2026-11-19T19:34:19.364Z",
+   "files": [
+    "...t-map-new-actions-for-unknown-import-columns.md",
+    "app/pages/import.js"
+   ],
+   "classification": "duplicate"
+  }
+ },
+ "edges": [
+  {
+   "from": "eps_37f55444",
+   "to": "eps_521a770f",
+   "type": "related-via-files",
+   "createdAt": "2026-11-19T19:26:52.311Z",
+   "evidence": "jaccard=1.00"
+  },
+  {
+   "from": "eps_b3fdd6c5",
+   "to": "eps_521a770f",
+   "type": "continues",
+   "createdAt": "2026-11-19T19:31:40.241Z",
+   "evidence": "same-session-adjacent"
+  },
+  {
+   "from": "eps_594c19da",
+   "to": "ses_ses_724f0fd1_2026-11-19T19-3_auto-suggest-map-new-actions-for-unknown-import-columns.md",
+   "type": "duplicate-of",
+   "createdAt": "2026-11-19T19:34:58.776Z",
+   "evidence": "near-duplicate of ses_ses_724f0fd1_2026-11-19T19-3_auto-suggest-map-new-actions-for-unknown-import-columns.md"
+  },
+  {
+   "from": "eps_594c19da",
+   "to": "eps_b3fdd6c5",
+   "type": "continues",
+   "createdAt": "2026-11-19T19:34:58.776Z",
+   "evidence": "same-session-adjacent"
+  },
+  {
+   "from": "eps_594c19da",
+   "to": "eps_b3fdd6c5",
+   "type": "related-via-files",
+   "createdAt": "2026-11-19T19:34:58.776Z",
+   "evidence": "jaccard=0.33"
+  }
+ ],
+ "consolidation": {
+  "reflectsSinceConsolidation": 4,
+  "lastConsolidatedAt": null,
+  "clusters": []
+ }
+}

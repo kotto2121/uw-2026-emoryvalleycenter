@@ -1,0 +1,20 @@
+- id: ref_7c04ba22
+  created_at: 2026-11-19T18:49:58.135Z
+  source_episode: |-
+    ses_4913655c · Global sentinel norm
+     ▒▒▒▒▒░░░░░  importer.js ██░░░░
+     ▒▒▒▒▒░░░░░  incidents-xlsx.js ██░░░░
+     ▒▒▒▒▒░░░░░  normalize.js ██░░░░
+     shape: ▓▓ST▓▓T▓T▒
+     tools: files.read×12 files.edit×4 tasks.done×3 search×2 ex…
+     tasks: ██████████ 3/3
+  category: decisions
+  content: Sentinel values (NA, None, null, -, etc.) are normalized to SQL NULL
+    rather than a sentinel string. groupCount currently merges blank and
+    explicit N/A into a single '(Not recorded)' bucket; splitting them can be
+    deferred until compliance reporting requires it.
+  tags:
+    - sentinels
+    - null-handling
+    - groupcount
+  superseded_by: null

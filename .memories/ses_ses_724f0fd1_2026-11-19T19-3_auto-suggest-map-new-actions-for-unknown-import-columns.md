@@ -32,9 +32,9 @@ Auto-suggest map/new actions for unknown import columns
 Added a suggestDecision(header, knownFields) helper to app/pages/import.js that fuzzy-matches each unknown header against known fields: exact/normalized match scores 1.0, token overlap and character-bigram similarity are combined with a 0.45 threshold, and unmatched headers fall back to action:'new' with a snake_case slug of the header (e.g. 'Funding Source' → 'funding_source'). Wired it into both the initial decisions useState and the sync useEffect that backfills after header-row re-analysis. Users can still override any preselected action/field. Dev server compiled cleanly.
 
 ```sigil
-ses_724f0fd1 · Auto-suggest map/new
+ses_724f0fd1 · Tighten import colum
  ▒▒▒▒▒░░░░░  import.js ██████
- shape: ▒▒U▓▒S▒▒T░
- tools: search×2 files.read×2 files.edit×2 episode.finish×1…
+ shape: ▒▒▒S▓▒▒T▒░
+ tools: files.edit×4 files.script×3 episode.finish×1 episod…
  tasks: ██████████ 1/1
 ```

@@ -1,0 +1,58 @@
+- id: ref_849cc71f
+  created_at: 2026-11-19T18:49:58.134Z
+  source_episode: |-
+    ses_4913655c · Global sentinel norm
+     ▒▒▒▒▒░░░░░  importer.js ██░░░░
+     ▒▒▒▒▒░░░░░  incidents-xlsx.js ██░░░░
+     ▒▒▒▒▒░░░░░  normalize.js ██░░░░
+     shape: ▓▓ST▓▓T▓T▒
+     tools: files.read×12 files.edit×4 tasks.done×3 search×2 ex…
+     tasks: ██████████ 3/3
+  category: gotchas
+  content: Already-imported databases retain raw sentinel strings in stored rows.
+    Normalization only applies at ingest time, so a re-import or one-shot UPDATE
+    migration is needed to retroactively clean existing data.
+  tags:
+    - migration
+    - database
+    - normalization
+  superseded_by: null
+- id: ref_0cfab2de
+  created_at: 2026-11-19T19:26:50.793Z
+  source_episode: |-
+    ses_f403c4af · Add docs/build-windo
+     ▒▒▒▒▒░░░░░  README.md ███░░░
+     ▒▒▒▒▒░░░░░  build-windows.md ███░░░
+     shape: ▒▒▒STT▒▒▒T
+     tools: explore×6 tasks.done×3 files.edit×2 files.read×2 ru…
+     tasks: ██████████ 3/3
+  category: gotchas
+  content: A stale release/ directory containing old arm64 artifacts can cause
+    electron-builder failures on Windows. Clean the release/ dir before
+    rebuilding if encountering unexpected architecture errors.
+  tags:
+    - build
+    - windows
+    - troubleshooting
+    - electron-builder
+  superseded_by: null
+- id: ref_f4446b82
+  created_at: 2026-11-19T19:31:38.848Z
+  source_episode: |-
+    ses_724f0fd1 · Guard decisions look
+     ▒▒▒▒▒░░░░░  import.js ██████
+     shape: ▒▓▒S▒▒▒▒T░
+     tools: files.edit×4 search×3 files.read×2 episode.finish×1…
+     tasks: ██████████ 1/1
+  category: gotchas
+  content: When header-row re-analysis introduces new unknownHeaders, the
+    decisions state object can lag behind, causing TypeErrors on
+    decisions[u.header] lookups. Always guard reads with default objects and use
+    a useEffect to backfill missing decision entries whenever unknownHeaders
+    changes.
+  tags:
+    - import
+    - state-sync
+    - header-row
+    - decisions
+  superseded_by: null
