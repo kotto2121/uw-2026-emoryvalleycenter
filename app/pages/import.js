@@ -7,6 +7,48 @@ import { Button, Callout, Card, PageHeader, toast, useAsync } from "../component
 import { api } from "../lib/api";
 import { fmt, monthLabel, relativeTime } from "../lib/format";
 
+// Suggest an action for an unknown column header by fuzzy-matching against known fields.
+// Tries normalized equality, token overlap, and character similarity; falls back to
+// suggesting a new snake_case field derived from the header.
+function slugify(s) {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+function tokens(s) {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+}
+function bigrams(s) {
+  const t = ` ${s} `; const out = [];
+  for (let i = 0; i < t.length - 1; i++) out.push(t.slice(i, i + 2));
+  return out;
+}
+function similarity(a, b) {
+  const A = bigrams(a), B = bigrams(b);
+  if (!A.length || !B.length) return 0;
+  let hits = 0;
+  for (const g of A) { const i = B.indexOf(g); if (i !== -1) { hits++; B.splice(i, 1); } }
+  return (2 * hits) / (A.length + B.length);
+}
+const SUGGEST_THRESHOLD = 0.45;
+function suggestDecision(header, knownFields = []) {
+  const h = String(header || "").trim();
+  const hSq = h.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const hToks = new Set(tokens(h));
+  let best = null, bestScore = 0;
+  for (const f of knownFields) {
+    if (!f) continue;
+    let score = 0;
+    if (f.toLowerCase() === h.toLowerCase() || f === hSq || f === slugify(h)) score = 1;
+    else {
+      const fToks = new Set(tokens(f.replace(/_/g, " ")));
+      const overlap = [...hToks].filter((t) => fToks.has(t)).length;
+      score = Math.max(overlap / Math.min(hToks.size, fToks.size) * 0.9, similarity(hSq, f.replace(/_/g, "")));
+    }
+    if (score > bestScore) { bestScore = score; best = f; }
+  }
+  if (best && bestScore >= SUGGEST_THRESHOLD) return { action: "map", field: best, remember: true };
+  return { action: "new", field: slugify(h) || "custom_field", remember: true };
+}
+
 function Dropzone({ accept, title, hint, icon, onFile, busy }) {
   const input = useRef(null);
   const [over, setOver] = useState(false);
@@ -173,14 +215,14 @@ function IncidentReview({ analysis, file, onReanalyze, onDone, onCancel }) {
   const [orienting, setOrienting] = useState(false);
   // decisions: header -> { action: 'map'|'new'|'ignore', field, remember }
   const [decisions, setDecisions] = useState(() =>
-    Object.fromEntries((analysis.unknownHeaders || []).map((u) => [u.header, { action: "ignore", field: "", remember: true }]))
+    Object.fromEntries((analysis.unknownHeaders || []).map((u) => [u.header, suggestDecision(u.header, analysis.knownFields)]))
   );
   // Keep decisions in sync when a header-row re-analysis produces new unknownHeaders.
   useEffect(() => {
     setDecisions((d) => {
       const missing = (analysis.unknownHeaders || []).filter((u) => !d[u.header]);
       if (!missing.length) return d;
-      return { ...d, ...Object.fromEntries(missing.map((u) => [u.header, { action: "ignore", field: "", remember: true }])) };
+      return { ...d, ...Object.fromEntries(missing.map((u) => [u.header, suggestDecision(u.header, analysis.knownFields)])) };
     });
   }, [analysis]);
   const [busy, setBusy] = useState(false);
